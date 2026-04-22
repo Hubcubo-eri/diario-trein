@@ -358,16 +358,21 @@ function MainApp() {
             {Object.entries(MEALS).map(([mk, meal]) => (
               <div key={mk} style={{ marginBottom: 10 }}>
                 <button onClick={() => setExpMeal(expMeal === mk ? null : mk)}
-                  style={{ width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: expMeal === mk ? '12px 12px 0 0' : 12, padding: '12px 14px', cursor: 'pointer', color: '#e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  style={{ width: '100%', textAlign: 'left', background: day.sp && day.sp[mk] ? 'rgba(239,68,68,0.08)' : 'rgba(255,255,255,0.04)', border: `1px solid ${day.sp && day.sp[mk] ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.06)'}`, borderRadius: expMeal === mk ? '12px 12px 0 0' : 12, padding: '12px 14px', cursor: 'pointer', color: '#e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{ fontSize: 20 }}>{meal.icon}</span>
-                    <div>
-                      <div style={{ fontSize: 14, fontWeight: 600 }}>{meal.name}</div>
-                      <div style={{ fontSize: 11, color: '#6b7280' }}>{meal.items.filter(it => day.mc[it.id]).length}/{meal.items.length}</div>
+                    <span style={{ fontSize: 20, opacity: day.sp && day.sp[mk] ? 0.6 : 1 }}>{meal.icon}</span>
+                    <div style={{ opacity: day.sp && day.sp[mk] ? 0.6 : 1 }}>
+                      <div style={{ fontSize: 14, fontWeight: 600, textDecoration: day.sp && day.sp[mk] ? 'line-through' : 'none' }}>{meal.name}</div>
+                      <div style={{ fontSize: 11, color: '#6b7280' }}>{meal.items.filter(it => day.mc[it.id]).length}/{meal.items.length}{day.sp && day.sp[mk] ? '*' : ''}</div>
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    {meal.items.every(it => day.mc[it.id]) && <span style={{ fontSize: 10, color: '#10b981', fontWeight: 700 }}>✓</span>}
+                    {meal.items.every(it => day.mc[it.id]) && !day.sp?.[mk] && <span style={{ fontSize: 10, color: '#10b981', fontWeight: 700 }}>✓</span>}
+                    {day.sp && day.sp[mk] && <span style={{ fontSize: 10, color: '#ef4444', fontWeight: 700 }}>✕</span>}
+                    <button onClick={(e) => { e.stopPropagation(); toggleSp(mk); }}
+                      style={{ padding: '4px 8px', borderRadius: 6, border: 'none', background: day.sp && day.sp[mk] ? 'rgba(239,68,68,0.2)' : 'transparent', color: day.sp && day.sp[mk] ? '#ef4444' : '#6b7280', fontSize: 12, fontWeight: 600, cursor: 'pointer', marginRight: 4 }}>
+                      {day.sp && day.sp[mk] ? '↺' : '+'}
+                    </button>
                     <span style={{ fontSize: 18, color: '#6b7280', transform: expMeal === mk ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>▾</span>
                   </div>
                 </button>
