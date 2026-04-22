@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { WORKOUTS, MEALS, SUPPLEMENTS, ACTIVITIES, TOTAL_MEALS, emptyDay } from './data';
 import { loadAllData, saveDay as saveDayDB, exportAllData } from './storage';
 import { generatePDF } from './pdf';
+import { DashboardEvolucao } from './DashboardEvolucao';
 
 function dk(d) { return d.toISOString().slice(0, 10); }
 function datePretty(d) { return d.toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric', month: 'short' }); }
@@ -278,7 +279,7 @@ function MainApp() {
       )}
 
       <div style={{ display: 'flex', gap: 4, padding: '12px 20px', position: 'sticky', top: 0, zIndex: 10, background: 'rgba(10,10,15,0.92)', backdropFilter: 'blur(16px)' }}>
-        {[{ id: 'treino', l: 'Treino', i: '💪' }, { id: 'comida', l: 'Dieta', i: '🥗' }, { id: 'dia', l: 'Dia', i: '📋' }].map(t => (
+        {[{ id: 'treino', l: 'Treino', i: '💪' }, { id: 'comida', l: 'Dieta', i: '🥗' }, { id: 'dia', l: 'Dia', i: '📋' }, { id: 'evolucao', l: 'Evolução', i: '📊' }].map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
             style={{ flex: 1, padding: '10px 0', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer',
               background: tab === t.id ? 'rgba(16,185,129,0.15)' : 'rgba(255,255,255,0.03)',
@@ -468,6 +469,10 @@ function MainApp() {
               </div>
             </div>
           </div>
+        )}
+
+        {tab === 'evolucao' && (
+          <DashboardEvolucao supabaseClient={null} userId={null} />
         )}
       </div>
 
