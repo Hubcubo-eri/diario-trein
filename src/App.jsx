@@ -472,7 +472,7 @@ function MainApp() {
         )}
 
         {tab === 'evolucao' && (
-          <DashboardEvolucao supabaseClient={null} userId={null} />
+          <DashboardEvolucao supabaseClient={null} userId={null} allData={allData} />
         )}
       </div>
 

@@ -18,26 +18,47 @@ export function DashboardEvolucao({ supabaseClient, userId, allData = {} }) {
   const [tab, setTab] = useState('composicao'); // 'composicao', 'exercicios', 'refeicoes'
   const [exercicioSelecionado, setExercicioSelecionado] = useState(null);
   
-  // Histórico de exercícios (simulado do allData do app)
-  const [exerciciosHistorico, setExerciciosHistorico] = useState({
-    'supino': [
-      { data: '15/03/2026', peso: 100 },
-      { data: '25/03/2026', peso: 105 },
-      { data: '10/04/2026', peso: 110 },
-      { data: '22/04/2026', peso: 115 }
-    ],
-    'agachamento': [
-      { data: '15/03/2026', peso: 120 },
-      { data: '25/03/2026', peso: 130 },
-      { data: '10/04/2026', peso: 135 },
-      { data: '22/04/2026', peso: 140 }
-    ],
-    'rosca-direta': [
-      { data: '15/03/2026', peso: 35 },
-      { data: '25/03/2026', peso: 37 },
-      { data: '10/04/2026', peso: 38 },
-      { data: '22/04/2026', peso: 40 }
-    ]
+  // Extrair histórico de exercícios do allData
+  const [exerciciosHistorico, setExerciciosHistorico] = useState(() => {
+    const historico = {};
+    
+    // Iterar por todas as datas no allData
+    Object.entries(allData || {}).forEach(([dataISO, dayData]) => {
+      if (!dayData || !dayData.ex) return;
+      
+      // Converter ISO date pra formato BR (2026-04-22 -> 22/04/2026)
+      const [ano, mes, dia] = dataISO.split('-');
+      const dataBR = `${dia}/${mes}/${ano}`;
+      
+      // Iterar por cada exercício do dia
+      Object.entries(dayData.ex).forEach(([exId, exData]) => {
+        if (!exData.w || exData.w === '') return; // Pula se não tem peso
+        
+        // Inicializa array se não existe
+        if (!historico[exId]) {
+          historico[exId] = [];
+        }
+        
+        // Adiciona ao histórico
+        historico[exId].push({
+          data: dataBR,
+          dataISO: dataISO,
+          peso: parseFloat(exData.w),
+          done: exData.done || false
+        });
+      });
+    });
+    
+    // Ordenar cada exercício por data
+    Object.keys(historico).forEach(exId => {
+      historico[exId].sort((a, b) => {
+        const [da, ma, aa] = a.dataISO.split('-').map(Number);
+        const [db, mb, ab] = b.dataISO.split('-').map(Number);
+        return new Date(aa, ma - 1, da) - new Date(ab, mb - 1, db);
+      });
+    });
+    
+    return historico;
   });
 
   // Tracker de refeições (por dia)
@@ -342,70 +363,83 @@ export function DashboardEvolucao({ supabaseClient, userId, allData = {} }) {
       {/* TAB: EVOLUÇÃO DE EXERCÍCIOS */}
       {tab === 'exercicios' && (
         <>
-          <div style={{ marginBottom: 20 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: '#6b7280', marginBottom: 12 }}>Selecione um exercício:</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: 8 }}>
-              {Object.keys(exerciciosHistorico).map(exercicio => (
-                <button key={exercicio}
-                  onClick={() => setExercicioSelecionado(exercicio)}
-                  style={{
-                    padding: '10px 14px',
-                    borderRadius: 8,
-                    border: 'none',
-                    background: exercicioSelecionado === exercicio ? 'linear-gradient(135deg, #10b981, #059669)' : 'rgba(255,255,255,0.06)',
-                    color: exercicioSelecionado === exercicio ? '#fff' : '#9ca3af',
-                    fontWeight: 600,
-                    fontSize: 12,
-                    cursor: 'pointer',
-                    textTransform: 'capitalize',
-                    transition: 'all 0.2s'
-                  }}>
-                  {exercicio.replace('-', ' ')}
-                </button>
-              ))}
+          {Object.keys(exerciciosHistorico).length === 0 ? (
+            <div style={{ ...csCard, textAlign: 'center', padding: 30 }}>
+              <div style={{ fontSize: 14, color: '#6b7280', marginBottom: 8 }}>📊 Nenhum exercício com peso registrado</div>
+              <div style={{ fontSize: 12, color: '#4b5563' }}>Preencha o peso dos exercícios no tab "Treino" para ver a evolução aqui!</div>
             </div>
-          </div>
-
-          {exercicioSelecionado && (
+          ) : (
             <>
-              <div style={{ ...csCard, marginBottom: 20 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Evolução: {exercicioSelecionado.replace('-', ' ').toUpperCase()}</div>
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={exerciciosHistorico[exercicioSelecionado]}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                    <XAxis dataKey="data" stroke="#6b7280" style={{ fontSize: 11 }} />
-                    <YAxis stroke="#6b7280" style={{ fontSize: 11 }} label={{ value: 'kg', angle: -90, position: 'insideLeft' }} />
-                    <Tooltip contentStyle={{ background: 'rgba(0,0,0,0.7)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 6 }} formatter={(value) => `${value} kg`} />
-                    <Line type="monotone" dataKey="peso" stroke="#10b981" strokeWidth={3} dot={{ fill: '#10b981', r: 6 }} activeDot={{ r: 8 }} />
-                  </LineChart>
-                </ResponsiveContainer>
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#6b7280', marginBottom: 12 }}>Selecione um exercício:</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: 8 }}>
+                  {Object.entries(exerciciosHistorico).map(([exId, historico]) => (
+                    <button key={exId}
+                      onClick={() => setExercicioSelecionado(exId)}
+                      style={{
+                        padding: '10px 14px',
+                        borderRadius: 8,
+                        border: 'none',
+                        background: exercicioSelecionado === exId ? 'linear-gradient(135deg, #10b981, #059669)' : 'rgba(255,255,255,0.06)',
+                        color: exercicioSelecionado === exId ? '#fff' : '#9ca3af',
+                        fontWeight: 600,
+                        fontSize: 11,
+                        cursor: 'pointer',
+                        transition: 'all 0.2s'
+                      }}>
+                      <div style={{ textTransform: 'capitalize', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {exId}
+                      </div>
+                      <div style={{ fontSize: 10, opacity: 0.7, marginTop: 2 }}>
+                        {Math.max(...historico.map(h => h.peso))}kg
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </div>
 
-              <div style={{ ...csCard }}>
-                <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 12 }}>Histórico de Pesos</div>
-                <table style={{ width: '100%', fontSize: 12 }}>
-                  <thead>
-                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                      <th style={{ textAlign: 'left', padding: '8px 0', color: '#6b7280', fontWeight: 500 }}>Data</th>
-                      <th style={{ textAlign: 'right', padding: '8px 0', color: '#6b7280', fontWeight: 500 }}>Peso (kg)</th>
-                      <th style={{ textAlign: 'right', padding: '8px 0', color: '#6b7280', fontWeight: 500 }}>Evolução</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {exerciciosHistorico[exercicioSelecionado].map((hist, idx) => {
-                      const anterior = idx > 0 ? exerciciosHistorico[exercicioSelecionado][idx - 1].peso : null;
-                      const evolucao = anterior ? `+${(hist.peso - anterior).toFixed(1)} kg` : '—';
-                      return (
-                        <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                          <td style={{ padding: '8px 0' }}>{hist.data}</td>
-                          <td style={{ textAlign: 'right', padding: '8px 0', color: '#10b981', fontWeight: 600 }}>{hist.peso}</td>
-                          <td style={{ textAlign: 'right', padding: '8px 0', color: evolucao.includes('-') ? '#ef4444' : '#10b981', fontWeight: 600 }}>{evolucao}</td>
+              {exercicioSelecionado && exerciciosHistorico[exercicioSelecionado] && (
+                <>
+                  <div style={{ ...csCard, marginBottom: 20 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Evolução: {exercicioSelecionado.toUpperCase()}</div>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <LineChart data={exerciciosHistorico[exercicioSelecionado]}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                        <XAxis dataKey="data" stroke="#6b7280" style={{ fontSize: 11 }} />
+                        <YAxis stroke="#6b7280" style={{ fontSize: 11 }} label={{ value: 'kg', angle: -90, position: 'insideLeft' }} />
+                        <Tooltip contentStyle={{ background: 'rgba(0,0,0,0.7)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 6 }} formatter={(value) => `${value} kg`} />
+                        <Line type="monotone" dataKey="peso" stroke="#10b981" strokeWidth={3} dot={{ fill: '#10b981', r: 6 }} activeDot={{ r: 8 }} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  <div style={{ ...csCard }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 12 }}>Histórico de Pesos</div>
+                    <table style={{ width: '100%', fontSize: 12 }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                          <th style={{ textAlign: 'left', padding: '8px 0', color: '#6b7280', fontWeight: 500 }}>Data</th>
+                          <th style={{ textAlign: 'right', padding: '8px 0', color: '#6b7280', fontWeight: 500 }}>Peso (kg)</th>
+                          <th style={{ textAlign: 'right', padding: '8px 0', color: '#6b7280', fontWeight: 500 }}>Evolução</th>
                         </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                      </thead>
+                      <tbody>
+                        {exerciciosHistorico[exercicioSelecionado].map((hist, idx) => {
+                          const anterior = idx > 0 ? exerciciosHistorico[exercicioSelecionado][idx - 1].peso : null;
+                          const evolucao = anterior ? `+${(hist.peso - anterior).toFixed(1)} kg` : '—';
+                          return (
+                            <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                              <td style={{ padding: '8px 0' }}>{hist.data}</td>
+                              <td style={{ textAlign: 'right', padding: '8px 0', color: '#10b981', fontWeight: 600 }}>{hist.peso}</td>
+                              <td style={{ textAlign: 'right', padding: '8px 0', color: evolucao.includes('-') ? '#ef4444' : '#10b981', fontWeight: 600 }}>{evolucao}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
             </>
           )}
         </>
