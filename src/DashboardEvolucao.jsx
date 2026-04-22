@@ -2,8 +2,24 @@ import { useState, useEffect } from 'react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Upload, Loader } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
+import { WORKOUTS } from './data';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+
+// Criar mapa de ID -> Nome do exercício
+const criarMapaExercicios = () => {
+  const mapa = {};
+  Object.values(WORKOUTS).forEach(workout => {
+    workout.sections.forEach(section => {
+      section.exercises.forEach(ex => {
+        mapa[ex.id] = ex.name;
+      });
+    });
+  });
+  return mapa;
+};
+
+const EXERCICIOS_NOMES = criarMapaExercicios();
 
 export function DashboardEvolucao({ supabaseClient, userId, allData = {} }) {
   const [avaliacoes, setAvaliacoes] = useState([
@@ -388,7 +404,7 @@ export function DashboardEvolucao({ supabaseClient, userId, allData = {} }) {
                         transition: 'all 0.2s'
                       }}>
                       <div style={{ textTransform: 'capitalize', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {exId}
+                        {EXERCICIOS_NOMES[exId] || exId}
                       </div>
                       <div style={{ fontSize: 10, opacity: 0.7, marginTop: 2 }}>
                         {Math.max(...historico.map(h => h.peso))}kg
@@ -401,7 +417,7 @@ export function DashboardEvolucao({ supabaseClient, userId, allData = {} }) {
               {exercicioSelecionado && exerciciosHistorico[exercicioSelecionado] && (
                 <>
                   <div style={{ ...csCard, marginBottom: 20 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Evolução: {exercicioSelecionado.toUpperCase()}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Evolução: {(EXERCICIOS_NOMES[exercicioSelecionado] || exercicioSelecionado).toUpperCase()}</div>
                     <ResponsiveContainer width="100%" height={300}>
                       <LineChart data={exerciciosHistorico[exercicioSelecionado]}>
                         <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
