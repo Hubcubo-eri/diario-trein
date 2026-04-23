@@ -200,13 +200,13 @@ function MainApp() {
           const acts = ACTIVITIES.filter(a => (d.act || {})[a.id]);
           const c = d.cal || {}; const ct = parseInt(c.t) || ((parseInt(c.a) || 0) + (parseInt(c.b) || 0));
           return (
-            <div key={k} style={{ ...cs, marginBottom: 10 }}>
+            <div key={k} style={{ ...cs, marginBottom: 10, cursor: 'pointer', transition: 'all 0.2s ease' }} onClick={() => { setDate(new Date(k + 'T12:00:00')); setView('today'); }} onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(16,185,129,0.08)'} onMouseLeave={(e) => e.currentTarget.style.background = cs.background}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                 <div>
                   <div style={{ fontSize: 14, fontWeight: 700, color: '#f9fafb', textTransform: 'capitalize' }}>{datePretty(dt)}</div>
                   <div style={{ fontSize: 11, color: '#6b7280' }}>{d.wk === 'treino2' ? 'Treino 2' : 'Treino 1'}</div>
                 </div>
-                <button onClick={() => generatePDF(d, dateFull(dt))} style={{ background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.3)', color: '#10b981', padding: '6px 12px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>📄</button>
+                <button onClick={(e) => { e.stopPropagation(); generatePDF(d, dateFull(dt)); }} style={{ background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.3)', color: '#10b981', padding: '6px 12px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>📄</button>
               </div>
               <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 11, color: de === te ? '#10b981' : '#9ca3af' }}>💪 {de}/{te}</span>
