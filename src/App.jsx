@@ -270,6 +270,7 @@ function MainApp() {
             </div>
           ))}
         </div>
+      </div>
 
       {showMsg && (
         <div style={{ margin: '12px 20px 0', padding: '10px 14px', background: 'rgba(16,185,129,0.08)', borderRadius: 10, border: '1px solid rgba(16,185,129,0.15)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
