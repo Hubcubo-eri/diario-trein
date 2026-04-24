@@ -3,6 +3,7 @@ import { WORKOUTS, MEALS, SUPPLEMENTS, ACTIVITIES, TOTAL_MEALS, emptyDay } from 
 import { loadAllData, saveDay as saveDayDB, exportAllData } from './storage';
 import { generatePDF } from './pdf';
 import { DashboardEvolucao } from './DashboardEvolucao';
+import { colors, spacing, radius, getCardStyle, getButtonStyle, getTabStyle } from './appStyles';
 
 function dk(d) { return d.toISOString().slice(0, 10); }
 function datePretty(d) { return d.toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric', month: 'short' }); }
@@ -225,49 +226,50 @@ function MainApp() {
 
   // ── MAIN ──
   return (
-    <div style={{ minHeight: '100vh', background: 'linear-gradient(145deg, #0a0a0f, #111118, #0d1117)', color: '#e5e7eb', fontFamily: "'DM Sans', sans-serif", position: 'relative' }}>
+    <div style={{ minHeight: '100vh', background: colors.bgPrimary, color: colors.textPrimary, fontFamily: "'DM Sans', 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif", position: 'relative' }}>
       <div style={{ position: 'fixed', top: -120, right: -120, width: 400, height: 400, background: 'radial-gradient(circle, rgba(16,185,129,0.08), transparent 70%)', pointerEvents: 'none', zIndex: 0 }} />
       {statusBadge}
 
-      <div style={{ padding: '20px 20px 0', position: 'relative', zIndex: 1 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div style={{ padding: `${spacing.xl}px ${spacing.xl}px 0`, position: 'relative', zIndex: 1 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.xxl }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: spacing.md }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
-              {[0,1,2,3].map(i => <div key={i} style={{ width: 9, height: 9, borderRadius: 2, background: '#10b981' }} />)}
+              {[0,1,2,3].map(i => <div key={i} style={{ width: 10, height: 10, borderRadius: radius.sm, background: colors.accent }} />)}
             </div>
-            <span style={{ fontSize: 16, fontWeight: 700, color: '#10b981', letterSpacing: -0.5 }}>cubo<span style={{ fontWeight: 300 }}>saúde</span></span>
+            <span style={{ fontSize: 16, fontWeight: 700, color: colors.accent, letterSpacing: -0.5 }}>cubo</span>
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={() => setView('history')} style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#9ca3af', padding: '8px 12px', borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>📊</button>
-            <button onClick={() => generatePDF(day, dateFull(date))} style={{ background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: 'pointer', boxShadow: '0 4px 20px rgba(16,185,129,0.3)' }}>📄</button>
+          <div style={{ display: 'flex', gap: spacing.md }}>
+            <button onClick={() => setView('history')} style={{ ...getButtonStyle('secondary'), padding: `${spacing.sm}px ${spacing.md}px` }}>📊</button>
+            <button onClick={() => generatePDF(day, dateFull(date))} style={{ ...getButtonStyle('primary'), padding: `${spacing.sm}px ${spacing.md}px` }}>📄</button>
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 16 }}>
-          <button onClick={() => chgDate(-1)} style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#9ca3af', width: 36, height: 36, borderRadius: 10, fontSize: 16, cursor: 'pointer' }}>‹</button>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.xxl }}>
+          <button onClick={() => chgDate(-1)} style={{ ...getButtonStyle('secondary'), width: 40, height: 40, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>‹</button>
           <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 12, color: '#6b7280', textTransform: 'capitalize' }}>{dateFull(date)}</div>
-            <div style={{ fontSize: 20, fontWeight: 700, color: '#f9fafb' }}>Foco no Bucho! 🔥</div>
+            <div style={{ fontSize: 12, color: colors.textTertiary, textTransform: 'capitalize', marginBottom: spacing.sm }}>
+              {dateFull(date)}
+            </div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: colors.textPrimary }}>Foco no Bucho! 🔥</div>
           </div>
-          <button onClick={() => chgDate(1)} style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: dk(new Date()) === key ? '#2a2a2a' : '#9ca3af', width: 36, height: 36, borderRadius: 10, fontSize: 16, cursor: dk(new Date()) === key ? 'default' : 'pointer' }}>›</button>
+          <button onClick={() => chgDate(1)} style={{ ...getButtonStyle('secondary'), width: 40, height: 40, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, opacity: dk(new Date()) === key ? 0.5 : 1, cursor: dk(new Date()) === key ? 'default' : 'pointer' }}>›</button>
         </div>
 
-        <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+        <div style={{ marginBottom: spacing.xl, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: spacing.md }}>
           {[
             { l: 'Treino', v: `${dEx}/${tEx}`, p: tEx ? (dEx/tEx)*100 : 0 },
             { l: 'Dieta', v: `${dM}/${TOTAL_MEALS}`, p: TOTAL_MEALS ? (dM/TOTAL_MEALS)*100 : 0 },
             { l: 'Suplem.', v: `${dS}/${SUPPLEMENTS.length}`, p: (dS/SUPPLEMENTS.length)*100 },
           ].map((s, i) => (
-            <div key={i} style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 10, padding: '10px 12px', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <div style={{ fontSize: 10, color: '#6b7280', marginBottom: 4 }}>{s.l}</div>
-              <div style={{ fontSize: 18, fontWeight: 700, color: s.p === 100 ? '#10b981' : '#f9fafb' }}>{s.v}</div>
-              <div style={{ height: 3, background: 'rgba(255,255,255,0.08)', borderRadius: 2, marginTop: 6, overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: `${s.p}%`, background: '#10b981', borderRadius: 2, transition: 'width 0.4s' }} />
+            <div key={i} style={{ ...getCardStyle(), padding: spacing.lg }}>
+              <div style={{ fontSize: 10, color: colors.textTertiary, marginBottom: spacing.sm, textTransform: 'uppercase', fontWeight: 600, letterSpacing: 0.5 }}>{s.l}</div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: s.p === 100 ? colors.success : colors.textPrimary, marginBottom: spacing.md }}>{s.v}</div>
+              <div style={{ height: 4, background: 'rgba(255,255,255,0.08)', borderRadius: radius.sm, overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${s.p}%`, background: colors.accent, borderRadius: radius.sm, transition: 'width 0.4s ease' }} />
               </div>
             </div>
           ))}
         </div>
-      </div>
 
       {showMsg && (
         <div style={{ margin: '12px 20px 0', padding: '10px 14px', background: 'rgba(16,185,129,0.08)', borderRadius: 10, border: '1px solid rgba(16,185,129,0.15)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
