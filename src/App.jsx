@@ -5,6 +5,7 @@ import { generatePDF } from './pdf';
 import { DashboardEvolucao } from './DashboardEvolucao';
 import { FinanceModule } from './FinanceModule';
 import { NotesModule } from './NotesModule';
+import { AgendaModule } from './AgendaModule';
 import { colors, spacing, radius, getCardStyle, getButtonStyle } from './appStyles';
 
 function dk(d) { return d.toISOString().slice(0, 10); }
@@ -194,6 +195,7 @@ function MainApp() {
   const [showMsg, setShowMsg] = useState(true);
   const [loading, setLoading] = useState(true);
   const [section, setSection] = useState('home'); // home | finances | notes | agenda
+  const [userId] = useState('default-user'); // Pode ser substituído por autenticação real
 
   const key = dk(date);
   const day = allData[key] || emptyDay();
@@ -287,17 +289,11 @@ function MainApp() {
           />
         )}
 
-        {section === 'finances' && <FinanceModule allData={allData} />}
+        {section === 'finances' && <FinanceModule allData={allData} userId={userId} />}
 
-        {section === 'notes' && <NotesModule allData={allData} />}
+        {section === 'notes' && <NotesModule allData={allData} userId={userId} />}
 
-        {section === 'agenda' && (
-          <div style={{ padding: `${spacing.xxl}px 0`, textAlign: 'center', color: colors.textTertiary }}>
-            <div style={{ fontSize: 32, marginBottom: spacing.lg }}>📅</div>
-            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: spacing.sm }}>Agenda</div>
-            <div style={{ fontSize: 13 }}>Integração com Google Calendar (em breve)</div>
-          </div>
-        )}
+        {section === 'agenda' && <AgendaModule allData={allData} userId={userId} />}
       </div>
 
       {/* Footer Button */}

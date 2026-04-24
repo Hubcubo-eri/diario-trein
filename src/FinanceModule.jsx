@@ -1,13 +1,58 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { EXPENSE_CATEGORIES, INCOME_CATEGORIES } from './financialData';
 import { colors, spacing, radius, getCardStyle, getButtonStyle } from './appStyles';
+import { saveTransactions, loadTransactions, saveGoals, loadGoals, saveReminders, loadReminders } from './supabaseClient';
 
-export function FinanceModule({ allData = {}, onSave }) {
+export function FinanceModule({ allData = {}, userId = 'default-user' }) {
   const [tab, setTab] = useState('dashboard');
   const [transactions, setTransactions] = useState([]);
   const [goals, setGoals] = useState([]);
   const [reminders, setReminders] = useState([]);
   const [newTransaction, setNewTransaction] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  // Carregar dados ao montar
+  useEffect(() => {
+    loadAllData();
+  }, [userId]);
+
+  const loadAllData = async () => {
+    try {
+      const [trans, gls, rems] = await Promise.all([
+        loadTransactions(userId),
+        loadGoals(userId),
+        loadReminders(userId),
+      ]);
+      setTransactions(trans);
+      setGoals(gls);
+      setReminders(rems);
+    } catch (e) {
+      console.error('Erro ao carregar dados:', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Salvar transações quando mudarem
+  useEffect(() => {
+    if (!loading && transactions.length > 0) {
+      saveTransactions(userId, transactions);
+    }
+  }, [transactions, userId, loading]);
+
+  // Salvar goals quando mudarem
+  useEffect(() => {
+    if (!loading && goals.length > 0) {
+      saveGoals(userId, goals);
+    }
+  }, [goals, userId, loading]);
+
+  // Salvar reminders quando mudarem
+  useEffect(() => {
+    if (!loading && reminders.length > 0) {
+      saveReminders(userId, reminders);
+    }
+  }, [reminders, userId, loading]);
 
   // Calcular totais
   const thisMonth = new Date().getMonth() + 1;
