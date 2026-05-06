@@ -234,7 +234,9 @@ function MainApp() {
 
   // ── MAIN VIEW ─────────────────────────────────────────────────────────────
   const activeProgram   = PROGRAMS[ACTIVE_PROGRAM_ID];
-  const currentProgram  = day.program && PROGRAMS[day.program] ? PROGRAMS[day.program] : activeProgram;
+  const isLegacy = !day.program && (day.wk === 'treino1' || day.wk === 'treino2');
+  const currentProgramId = day.program ? day.program : isLegacy ? 'mes1' : ACTIVE_PROGRAM_ID;
+  const currentProgram  = PROGRAMS[currentProgramId] || activeProgram;
   const isArchived      = currentProgram.status === 'archived';
 
   return (
@@ -323,10 +325,10 @@ function MainApp() {
                   <button key={pid}
                     onClick={() => setProgram(pid, day.wk && PROGRAMS[pid].treinos[day.wk] ? day.wk : 'treinoA')}
                     style={{ flex: 1, padding: '8px 6px', borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: 'none',
-                      background: (day.program === pid || (!day.program && pid === ACTIVE_PROGRAM_ID))
+                      background: (currentProgramId === pid)
                         ? 'linear-gradient(135deg, #10b981, #059669)'
                         : 'rgba(255,255,255,0.04)',
-                      color: (day.program === pid || (!day.program && pid === ACTIVE_PROGRAM_ID)) ? '#fff' : '#9ca3af',
+                      color: currentProgramId === pid ? '#fff' : '#9ca3af',
                       position: 'relative' }}>
                     {prog.label}
                     {prog.status === 'archived' && (
