@@ -1,8 +1,17 @@
-import { WORKOUTS, MEALS, SUPPLEMENTS, ACTIVITIES } from './data';
+import { PROGRAMS, LEGACY_WORKOUT_MAP, MEALS, SUPPLEMENTS, ACTIVITIES } from './data';
+
+function resolveWorkoutForPDF(dayData) {
+  if (dayData.program && PROGRAMS[dayData.program]) {
+    const prog = PROGRAMS[dayData.program];
+    return prog.treinos[dayData.wk] || prog.treinos['treinoA'];
+  }
+  const map = LEGACY_WORKOUT_MAP[dayData.wk] || LEGACY_WORKOUT_MAP['treino1'];
+  return PROGRAMS[map.program].treinos[map.treino];
+}
 
 export function generatePDF(dayData, dateStr) {
-  const { wk, ex, mc, act, notes, sp, water, sub, cal } = dayData;
-  const workout = WORKOUTS[wk];
+  const { ex, mc, act, notes, sp, water, sub, cal } = dayData;
+  const workout = resolveWorkoutForPDF(dayData);
   const cA = parseInt(cal.a) || 0, cB = parseInt(cal.b) || 0, cT = parseInt(cal.t) || (cA + cB);
   let h = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap');

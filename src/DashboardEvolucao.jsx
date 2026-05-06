@@ -2,16 +2,18 @@ import { useState, useEffect } from 'react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Upload } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
-import { WORKOUTS } from './data';
+import { PROGRAMS } from './data';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 const criarMapaExercicios = () => {
   const mapa = {};
-  Object.values(WORKOUTS).forEach(workout => {
-    workout.sections.forEach(section => {
-      section.exercises.forEach(ex => {
-        mapa[ex.id] = ex.name;
+  Object.values(PROGRAMS).forEach(program => {
+    Object.values(program.treinos).forEach(workout => {
+      workout.sections.forEach(section => {
+        section.exercises.forEach(ex => {
+          mapa[ex.id] = ex.name;
+        });
       });
     });
   });
