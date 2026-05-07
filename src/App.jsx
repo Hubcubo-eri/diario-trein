@@ -337,7 +337,7 @@ function MainApp() {
   const currentProgramId = day.program ? day.program : isLegacy ? 'mes1' : ACTIVE_PROGRAM_ID;
   const currentProgram = PROGRAMS[currentProgramId] || PROGRAMS[ACTIVE_PROGRAM_ID];
   const isArchived = currentProgram.status === 'archived';
-  const workoutConfirmed = !!day.workoutConfirmed || isLegacy || !!day.program;
+  const workoutConfirmed = (day.workoutConfirmed !== false && (!!day.workoutConfirmed || isLegacy || !!day.program));
 
   // Programas visíveis no seletor (só ativos por padrão)
   const programsToShow = Object.entries(PROGRAMS).filter(([pid, prog]) =>
