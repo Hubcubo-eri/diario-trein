@@ -79,18 +79,72 @@ export default function App() {
   return <MainApp />;
 }
 
+// ─── Modal de seleção de treino ───────────────────────────────────────────
+function WorkoutPickerModal({ onConfirm }) {
+  const [selected, setSelected] = useState(null);
+  const prog = PROGRAMS[ACTIVE_PROGRAM_ID];
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)' }} />
+      <div style={{ position: 'relative', width: '100%', maxWidth: 480, background: '#111118', borderRadius: '24px 24px 0 0', padding: '28px 24px 48px', border: '1px solid rgba(255,255,255,0.08)' }}>
+        <div style={{ width: 36, height: 4, background: 'rgba(255,255,255,0.15)', borderRadius: 2, margin: '0 auto 28px' }} />
+
+        {/* Logo */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 8 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
+            {[0,1,2,3].map(i => <div key={i} style={{ width: 7, height: 7, borderRadius: 2, background: '#10b981' }} />)}
+          </div>
+          <span style={{ fontSize: 13, fontWeight: 700, color: '#10b981' }}>cubo<span style={{ fontWeight: 300 }}>saúde</span></span>
+        </div>
+
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          <div style={{ fontSize: 22, fontWeight: 700, color: '#f9fafb', marginBottom: 6 }}>Qual treino hoje? 💪</div>
+          <div style={{ fontSize: 13, color: '#6b7280' }}>{prog.label} — selecione para começar</div>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}>
+          {Object.entries(prog.treinos).map(([tid, treino]) => {
+            const isSelected = selected === tid;
+            const sections = treino.sections.map(s => s.name).join(' · ');
+            const totalEx = treino.sections.reduce((a, s) => a + s.exercises.length, 0);
+            return (
+              <button key={tid} onClick={() => setSelected(tid)}
+                style={{ padding: '18px 20px', borderRadius: 16, border: `2px solid ${isSelected ? '#10b981' : 'rgba(255,255,255,0.08)'}`, background: isSelected ? 'rgba(16,185,129,0.1)' : 'rgba(255,255,255,0.03)', cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: isSelected ? '#10b981' : '#f9fafb' }}>
+                    {tid === 'treinoA' ? 'Treino A' : 'Treino B'}
+                  </div>
+                  <div style={{ width: 22, height: 22, borderRadius: '50%', border: `2px solid ${isSelected ? '#10b981' : '#4b5563'}`, background: isSelected ? '#10b981' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {isSelected && <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#fff' }} />}
+                  </div>
+                </div>
+                <div style={{ fontSize: 12, color: '#6b7280' }}>{totalEx} exercícios · {sections}</div>
+              </button>
+            );
+          })}
+        </div>
+
+        <button onClick={() => selected && onConfirm(ACTIVE_PROGRAM_ID, selected)}
+          disabled={!selected}
+          style={{ width: '100%', padding: '16px 0', background: selected ? 'linear-gradient(135deg, #10b981, #059669)' : 'rgba(255,255,255,0.06)', border: 'none', borderRadius: 14, color: selected ? '#fff' : '#4b5563', fontSize: 15, fontWeight: 700, cursor: selected ? 'pointer' : 'default', boxShadow: selected ? '0 8px 30px rgba(16,185,129,0.3)' : 'none', transition: 'all 0.2s' }}>
+          Começar treino →
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Modal de Configurações ───────────────────────────────────────────────
 function SettingsModal({ onClose, visiblePrograms, setVisiblePrograms }) {
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
-      onClick={onClose}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={onClose}>
       <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }} />
       <div style={{ position: 'relative', width: '100%', maxWidth: 480, background: '#111118', borderRadius: '20px 20px 0 0', padding: '24px 20px 40px', border: '1px solid rgba(255,255,255,0.08)' }}
         onClick={e => e.stopPropagation()}>
         <div style={{ width: 36, height: 4, background: 'rgba(255,255,255,0.15)', borderRadius: 2, margin: '0 auto 20px' }} />
         <div style={{ fontSize: 16, fontWeight: 700, color: '#f9fafb', marginBottom: 6 }}>⚙️ Configurações</div>
         <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 20 }}>Programas visíveis no seletor de treino</div>
-
         {Object.entries(PROGRAMS).map(([pid, prog]) => {
           const isVisible = visiblePrograms.includes(pid);
           const isActive = prog.status === 'active';
@@ -98,32 +152,15 @@ function SettingsModal({ onClose, visiblePrograms, setVisiblePrograms }) {
             <div key={pid} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
               <div>
                 <div style={{ fontSize: 14, fontWeight: 600, color: '#e5e7eb' }}>{prog.label}</div>
-                <div style={{ fontSize: 11, color: isActive ? '#10b981' : '#6b7280', marginTop: 2 }}>
-                  {isActive ? '● Ativo' : '○ Arquivado'}
-                </div>
+                <div style={{ fontSize: 11, color: isActive ? '#10b981' : '#6b7280', marginTop: 2 }}>{isActive ? '● Ativo' : '○ Arquivado'}</div>
               </div>
-              <button
-                onClick={() => {
-                  if (isActive) return; // programa ativo sempre visível
-                  setVisiblePrograms(prev =>
-                    prev.includes(pid) ? prev.filter(p => p !== pid) : [...prev, pid]
-                  );
-                }}
-                style={{
-                  width: 48, height: 28, borderRadius: 14, border: 'none', cursor: isActive ? 'default' : 'pointer',
-                  background: isVisible ? '#10b981' : 'rgba(255,255,255,0.1)',
-                  position: 'relative', transition: 'background 0.2s', opacity: isActive ? 0.5 : 1,
-                }}>
-                <div style={{
-                  width: 20, height: 20, borderRadius: '50%', background: '#fff',
-                  position: 'absolute', top: 4, transition: 'left 0.2s',
-                  left: isVisible ? 24 : 4,
-                }} />
+              <button onClick={() => { if (isActive) return; setVisiblePrograms(prev => prev.includes(pid) ? prev.filter(p => p !== pid) : [...prev, pid]); }}
+                style={{ width: 48, height: 28, borderRadius: 14, border: 'none', cursor: isActive ? 'default' : 'pointer', background: isVisible ? '#10b981' : 'rgba(255,255,255,0.1)', position: 'relative', transition: 'background 0.2s', opacity: isActive ? 0.5 : 1 }}>
+                <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#fff', position: 'absolute', top: 4, transition: 'left 0.2s', left: isVisible ? 24 : 4 }} />
               </button>
             </div>
           );
         })}
-
         <button onClick={onClose}
           style={{ width: '100%', marginTop: 20, padding: '14px 0', background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none', borderRadius: 12, color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
           Fechar
@@ -136,7 +173,6 @@ function SettingsModal({ onClose, visiblePrograms, setVisiblePrograms }) {
 // ─── Card de Exercício com Séries ─────────────────────────────────────────
 function ExerciseCard({ e, exData, updateEx, cs }) {
   const [expanded, setExpanded] = useState(false);
-
   const numSets = parseInt(e.sets) || 0;
   const series = exData.series || Array.from({ length: numSets }, () => ({ done: false, reps: 0 }));
   const allDone = series.every(s => s.done);
@@ -144,67 +180,45 @@ function ExerciseCard({ e, exData, updateEx, cs }) {
 
   const updateSerie = (idx, field, value) => {
     const newSeries = series.map((s, i) => i === idx ? { ...s, [field]: value } : s);
-    const allSeriesDone = newSeries.every(s => s.done);
     updateEx(e.id, 'series', newSeries);
-    updateEx(e.id, 'done', allSeriesDone);
+    updateEx(e.id, 'done', newSeries.every(s => s.done));
   };
 
   return (
     <div style={{ ...cs, background: allDone ? 'rgba(16,185,129,0.06)' : cs.background, border: allDone ? '1px solid rgba(16,185,129,0.2)' : cs.border }}>
-
-      {/* ── Linha principal (toca para expandir) ── */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
-        onClick={() => setExpanded(v => !v)}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }} onClick={() => setExpanded(v => !v)}>
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: allDone ? '#10b981' : '#e5e7eb', textDecoration: allDone ? 'line-through' : 'none', opacity: allDone ? 0.8 : 1 }}>
-              {e.name}
-            </div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: allDone ? '#10b981' : '#e5e7eb', textDecoration: allDone ? 'line-through' : 'none', opacity: allDone ? 0.8 : 1 }}>{e.name}</div>
             {e.paired && (
-              <span style={{ fontSize: 9, fontWeight: 700, color: '#f59e0b', background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: 6, padding: '1px 6px', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                conjugado
-              </span>
+              <span style={{ fontSize: 9, fontWeight: 700, color: '#f59e0b', background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: 6, padding: '1px 6px', textTransform: 'uppercase', letterSpacing: 0.5 }}>conjugado</span>
             )}
           </div>
           <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>
-            {e.sets}×{e.reps} • {doneSets}/{numSets} séries
-            {e.obs && <span style={{ color: '#9ca3af' }}> · {e.obs}</span>}
+            {e.sets}×{e.reps} • {doneSets}/{numSets} séries{e.obs && <span style={{ color: '#9ca3af' }}> · {e.obs}</span>}
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 16, color: '#4b5563', transition: 'transform 0.2s', display: 'inline-block', transform: expanded ? 'rotate(180deg)' : 'none' }}>▾</span>
-        </div>
+        <span style={{ fontSize: 16, color: '#4b5563', display: 'inline-block', transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>▾</span>
       </div>
 
-      {/* ── Conteúdo expandido ── */}
       {expanded && (
         <div style={{ marginTop: 12 }}>
-
-          {/* Peso geral */}
           {e.hw && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
               <span style={{ fontSize: 11, color: '#6b7280' }}>Peso:</span>
-              <input type="number" placeholder="kg" value={exData.w || ''}
-                onChange={ev => updateEx(e.id, 'w', ev.target.value)}
-                onClick={ev => ev.stopPropagation()}
+              <input type="number" placeholder="kg" value={exData.w || ''} onChange={ev => updateEx(e.id, 'w', ev.target.value)} onClick={ev => ev.stopPropagation()}
                 style={{ width: 80, padding: '6px 10px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#e5e7eb', fontSize: 13, outline: 'none' }} />
               <span style={{ fontSize: 11, color: '#4b5563' }}>kg</span>
             </div>
           )}
-
-          {/* Séries */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {series.map((s, idx) => (
               <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', background: s.done ? 'rgba(16,185,129,0.08)' : 'rgba(255,255,255,0.03)', borderRadius: 10, border: `1px solid ${s.done ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.06)'}` }}>
-                {/* Check da série */}
                 <button onClick={() => updateSerie(idx, 'done', !s.done)}
                   style={{ width: 28, height: 28, borderRadius: 8, border: 'none', background: s.done ? 'linear-gradient(135deg, #10b981, #059669)' : 'rgba(255,255,255,0.08)', color: s.done ? '#fff' : '#4b5563', fontSize: 13, cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   {s.done ? '✓' : idx + 1}
                 </button>
-
                 <span style={{ fontSize: 11, color: '#6b7280', flexShrink: 0 }}>Série {idx + 1}</span>
-
-                {/* Contador de reps */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
                   <button onClick={() => updateSerie(idx, 'reps', Math.max(0, (s.reps || 0) - 1))}
                     style={{ width: 28, height: 28, borderRadius: 8, border: 'none', background: 'rgba(255,255,255,0.06)', color: '#9ca3af', fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
@@ -215,21 +229,15 @@ function ExerciseCard({ e, exData, updateEx, cs }) {
               </div>
             ))}
           </div>
-
-          {/* Exercício conjugado */}
           {e.paired && (
             <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(245,158,11,0.15)' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span style={{ fontSize: 10, color: '#f59e0b' }}>+</span>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: exData.pairedDone ? '#10b981' : '#d1d5db', textDecoration: exData.pairedDone ? 'line-through' : 'none' }}>
-                      {e.paired.name}
-                    </div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: exData.pairedDone ? '#10b981' : '#d1d5db', textDecoration: exData.pairedDone ? 'line-through' : 'none' }}>{e.paired.name}</div>
                   </div>
-                  <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2, paddingLeft: 14 }}>
-                    {e.sets}×{e.paired.reps} • sem descanso
-                  </div>
+                  <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2, paddingLeft: 14 }}>{e.sets}×{e.paired.reps} • sem descanso</div>
                 </div>
                 <button onClick={() => updateEx(e.id, 'pairedDone', !exData.pairedDone)}
                   style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: exData.pairedDone ? 'linear-gradient(135deg, #10b981, #059669)' : 'rgba(245,158,11,0.08)', color: exData.pairedDone ? '#fff' : '#f59e0b', fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -258,18 +266,25 @@ function MainApp() {
   const [visiblePrograms, setVisiblePrograms] = useState(() => {
     try {
       const saved = localStorage.getItem(VISIBLE_PROGRAMS_KEY);
-      return saved ? JSON.parse(saved) : Object.keys(PROGRAMS);
-    } catch { return Object.keys(PROGRAMS); }
+      // Por padrão: só programas ativos são visíveis
+      if (saved) return JSON.parse(saved);
+      return Object.keys(PROGRAMS).filter(pid => PROGRAMS[pid].status === 'active');
+    } catch { return Object.keys(PROGRAMS).filter(pid => PROGRAMS[pid].status === 'active'); }
   });
   const skipSave = useRef(true);
 
-  // Persiste preferência de programas visíveis
   useEffect(() => {
     localStorage.setItem(VISIBLE_PROGRAMS_KEY, JSON.stringify(visiblePrograms));
   }, [visiblePrograms]);
 
   const key = dk(date);
   const day = allData[key] || emptyDay();
+
+  // Dia novo = não tem registro no banco ainda (wk não foi confirmado)
+  const isNewDay = !allData[key];
+  const isToday = dk(new Date()) === key;
+  const showWorkoutPicker = isNewDay && isToday && tab === 'treino';
+
   const { treino: workout } = resolveWorkout(day);
 
   useEffect(() => {
@@ -309,7 +324,21 @@ function MainApp() {
   const setCal    = (f, v)     => setDay(d => ({ ...d, cal: { ...d.cal, [f]: v } }));
   const setSub    = (id, v)    => setDay(d => ({ ...d, sub: { ...d.sub, [id]: v } }));
   const setNotes  = (v)        => setDay(d => ({ ...d, notes: v }));
-  const setProgram = (programId, treinoId) => setDay(d => ({ ...d, program: programId, wk: treinoId }));
+
+  const confirmWorkout = (programId, treinoId) => {
+    setDay(d => ({ ...d, program: programId, wk: treinoId, workoutConfirmed: true }));
+  };
+
+  const isLegacy = !day.program && (day.wk === 'treino1' || day.wk === 'treino2');
+  const currentProgramId = day.program ? day.program : isLegacy ? 'mes1' : ACTIVE_PROGRAM_ID;
+  const currentProgram = PROGRAMS[currentProgramId] || PROGRAMS[ACTIVE_PROGRAM_ID];
+  const isArchived = currentProgram.status === 'archived';
+  const workoutConfirmed = !!day.workoutConfirmed || isLegacy || !!day.program;
+
+  // Programas visíveis no seletor (só ativos por padrão)
+  const programsToShow = Object.entries(PROGRAMS).filter(([pid, prog]) =>
+    prog.status === 'active' || visiblePrograms.includes(pid)
+  );
 
   const tEx = workout.sections.reduce((a, s) => a + s.exercises.length, 0);
   const dEx = workout.sections.reduce((a, s) => a + s.exercises.filter(e => day.ex[e.id]?.done).length, 0);
@@ -318,16 +347,6 @@ function MainApp() {
 
   const cs = { background: 'rgba(255,255,255,0.03)', borderRadius: 12, padding: '12px 14px', border: '1px solid rgba(255,255,255,0.05)' };
   const ls = { fontSize: 11, fontWeight: 700, color: '#10b981', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 12 };
-
-  const isLegacy = !day.program && (day.wk === 'treino1' || day.wk === 'treino2');
-  const currentProgramId = day.program ? day.program : isLegacy ? 'mes1' : ACTIVE_PROGRAM_ID;
-  const currentProgram = PROGRAMS[currentProgramId] || PROGRAMS[ACTIVE_PROGRAM_ID];
-  const isArchived = currentProgram.status === 'archived';
-
-  // Programas a mostrar no seletor (ativos sempre + arquivados se visível)
-  const programsToShow = Object.entries(PROGRAMS).filter(([pid, prog]) =>
-    prog.status === 'active' || visiblePrograms.includes(pid)
-  );
 
   if (loading) return (
     <div style={{ minHeight: '100vh', background: '#0a0a0f', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12 }}>
@@ -345,7 +364,7 @@ function MainApp() {
     </div>
   );
 
-  // ── HISTORY ──────────────────────────────────────────────────────────────
+  // ── HISTORY ───────────────────────────────────────────────────────────────
   if (view === 'history') {
     const days = Object.keys(allData).sort().reverse();
     return (
@@ -405,6 +424,7 @@ function MainApp() {
       <div style={{ position: 'fixed', top: -120, right: -120, width: 400, height: 400, background: 'radial-gradient(circle, rgba(16,185,129,0.08), transparent 70%)', pointerEvents: 'none', zIndex: 0 }} />
       {statusBadge}
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} visiblePrograms={visiblePrograms} setVisiblePrograms={setVisiblePrograms} />}
+      {showWorkoutPicker && <WorkoutPickerModal onConfirm={confirmWorkout} />}
 
       {/* ── Header ── */}
       <div style={{ padding: '20px 20px 0', position: 'relative', zIndex: 1 }}>
@@ -422,7 +442,6 @@ function MainApp() {
           </div>
         </div>
 
-        {/* Data */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 16 }}>
           <button onClick={() => { const d = new Date(date); d.setDate(d.getDate() - 1); setDate(d); }}
             style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#9ca3af', width: 36, height: 36, borderRadius: 10, fontSize: 16, cursor: 'pointer' }}>‹</button>
@@ -434,7 +453,6 @@ function MainApp() {
             style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: dk(new Date()) === key ? '#2a2a2a' : '#9ca3af', width: 36, height: 36, borderRadius: 10, fontSize: 16, cursor: dk(new Date()) === key ? 'default' : 'pointer' }}>›</button>
         </div>
 
-        {/* Progresso */}
         <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
           {[
             { l: 'Treino',  v: `${dEx}/${tEx}`,               p: tEx ? (dEx/tEx)*100 : 0 },
@@ -452,7 +470,6 @@ function MainApp() {
         </div>
       </div>
 
-      {/* Recado */}
       {showMsg && (
         <div style={{ margin: '12px 20px 0', padding: '10px 14px', background: 'rgba(16,185,129,0.08)', borderRadius: 10, border: '1px solid rgba(16,185,129,0.15)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div style={{ fontSize: 11, color: '#6ee7b7', lineHeight: 1.5, flex: 1 }}>
@@ -462,7 +479,6 @@ function MainApp() {
         </div>
       )}
 
-      {/* Tabs */}
       <div style={{ display: 'flex', gap: 4, padding: '12px 20px', position: 'sticky', top: 0, zIndex: 10, background: 'rgba(10,10,15,0.92)', backdropFilter: 'blur(16px)' }}>
         {[{ id: 'treino', l: 'Treino', i: '💪' }, { id: 'comida', l: 'Dieta', i: '🥗' }, { id: 'dia', l: 'Dia', i: '📋' }, { id: 'evolucao', l: 'Evolução', i: '📊' }].map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
@@ -477,14 +493,14 @@ function MainApp() {
         {/* ══ TAB TREINO ══ */}
         {tab === 'treino' && (
           <div>
-            {/* Seletor de programa — só aparece se há mais de 1 visível */}
-            {programsToShow.length > 1 && (
+            {/* Seletor de programa — só se há mais de 1 visível E treino já confirmado */}
+            {workoutConfirmed && programsToShow.length > 1 && (
               <div style={{ marginBottom: 12 }}>
                 <div style={{ fontSize: 10, color: '#4b5563', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>Programa</div>
                 <div style={{ display: 'flex', gap: 6 }}>
                   {programsToShow.map(([pid, prog]) => (
                     <button key={pid}
-                      onClick={() => setProgram(pid, day.wk && PROGRAMS[pid].treinos[day.wk] ? day.wk : 'treinoA')}
+                      onClick={() => { setDay(d => ({ ...d, program: pid, wk: PROGRAMS[pid].treinos[day.wk] ? day.wk : 'treinoA' })); }}
                       style={{ flex: 1, padding: '8px 6px', borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: 'none',
                         background: currentProgramId === pid ? 'linear-gradient(135deg, #10b981, #059669)' : 'rgba(255,255,255,0.04)',
                         color: currentProgramId === pid ? '#fff' : '#9ca3af' }}>
@@ -502,20 +518,39 @@ function MainApp() {
               </div>
             )}
 
-            {/* Seletor Treino A/B */}
-            <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-              {Object.keys(currentProgram.treinos).map(tid => (
-                <button key={tid}
-                  onClick={() => setProgram(currentProgramId, tid)}
-                  style={{ flex: 1, padding: '12px 8px', borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: 'none',
-                    background: day.wk === tid ? 'linear-gradient(135deg, #10b981, #059669)' : 'rgba(255,255,255,0.04)',
-                    color: day.wk === tid ? '#fff' : '#9ca3af' }}>
-                  {tid === 'treinoA' ? 'Treino A' : tid === 'treinoB' ? 'Treino B' : tid === 'treino1' ? 'Treino 1' : 'Treino 2'}
-                </button>
-              ))}
-            </div>
+            {/* Seletor Treino A/B — com badge do treino confirmado e botão trocar */}
+            {workoutConfirmed ? (
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'rgba(16,185,129,0.08)', borderRadius: 12, border: '1px solid rgba(16,185,129,0.2)' }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#10b981' }}>
+                      {day.wk === 'treinoA' ? 'Treino A' : day.wk === 'treinoB' ? 'Treino B' : day.wk === 'treino1' ? 'Treino 1' : 'Treino 2'}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>{currentProgram.label}</div>
+                  </div>
+                  {isToday && (
+                    <button onClick={() => setDay(d => ({ ...d, workoutConfirmed: false }))}
+                      style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', color: '#6b7280', padding: '5px 10px', borderRadius: 8, fontSize: 11, cursor: 'pointer' }}>
+                      trocar
+                    </button>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+                {Object.keys(currentProgram.treinos).map(tid => (
+                  <button key={tid}
+                    onClick={() => setDay(d => ({ ...d, program: ACTIVE_PROGRAM_ID, wk: tid, workoutConfirmed: true }))}
+                    style={{ flex: 1, padding: '12px 8px', borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: 'none',
+                      background: day.wk === tid ? 'linear-gradient(135deg, #10b981, #059669)' : 'rgba(255,255,255,0.04)',
+                      color: day.wk === tid ? '#fff' : '#9ca3af' }}>
+                    {tid === 'treinoA' ? 'Treino A' : tid === 'treinoB' ? 'Treino B' : tid === 'treino1' ? 'Treino 1' : 'Treino 2'}
+                  </button>
+                ))}
+              </div>
+            )}
 
-            {/* Seções e exercícios */}
+            {/* Exercícios */}
             {workout.sections.map(sec => (
               <div key={sec.name} style={{ marginBottom: 24 }}>
                 <div style={ls}>{sec.name}</div>
@@ -542,7 +577,6 @@ function MainApp() {
               </div>
               <span style={{ fontSize: 18, fontWeight: 700, color: day.water >= 8 ? '#0ea5e9' : '#6b7280' }}>{day.water}/8</span>
             </div>
-
             {Object.entries(MEALS).map(([mk, meal]) => (
               <div key={mk} style={{ marginBottom: 10 }}>
                 <button onClick={() => setExpMeal(expMeal === mk ? null : mk)}
@@ -581,8 +615,7 @@ function MainApp() {
                         {item.subs && (
                           <div style={{ marginTop: 6 }}>
                             <div style={{ fontSize: 10, color: '#6b7280' }}>Subst.: {item.subs}</div>
-                            <input type="text" placeholder="Usou qual?" value={day.sub[item.id] || ''}
-                              onChange={e => setSub(item.id, e.target.value)}
+                            <input type="text" placeholder="Usou qual?" value={day.sub[item.id] || ''} onChange={e => setSub(item.id, e.target.value)}
                               style={{ width: '100%', marginTop: 4, padding: '5px 8px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 6, color: '#e5e7eb', fontSize: 11, outline: 'none' }} />
                           </div>
                         )}
@@ -593,7 +626,6 @@ function MainApp() {
                 )}
               </div>
             ))}
-
             <div style={{ ...ls, marginTop: 24 }}>Suplementos</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {SUPPLEMENTS.map(s => (
@@ -621,8 +653,7 @@ function MainApp() {
                 {[{ k: 'a', l: 'Ativas', c: '#f59e0b', i: '🔥' }, { k: 'b', l: 'Basal', c: '#8b5cf6', i: '💤' }, { k: 't', l: 'Total', c: '#10b981', i: '⚡' }].map(c => (
                   <div key={c.k} style={{ textAlign: 'center' }}>
                     <div style={{ fontSize: 10, color: '#6b7280', marginBottom: 6 }}>{c.i} {c.l}</div>
-                    <input type="number" placeholder="kcal" value={day.cal[c.k] || ''}
-                      onChange={e => setCal(c.k, e.target.value)}
+                    <input type="number" placeholder="kcal" value={day.cal[c.k] || ''} onChange={e => setCal(c.k, e.target.value)}
                       style={{ width: '100%', padding: '10px 6px', textAlign: 'center', background: 'rgba(255,255,255,0.05)', border: `1px solid ${c.c}33`, borderRadius: 10, color: c.c, fontSize: 18, fontWeight: 700, outline: 'none' }} />
                     <div style={{ fontSize: 9, color: '#4b5563', marginTop: 4 }}>kcal</div>
                   </div>
@@ -634,27 +665,22 @@ function MainApp() {
                 </div>
               )}
             </div>
-
             <div style={ls}>Atividades</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 24 }}>
               {ACTIVITIES.map(a => (
                 <button key={a.id} onClick={() => toggleAct(a.id)}
-                  style={{ padding: '12px 8px', borderRadius: 12, cursor: 'pointer', textAlign: 'center', border: 'none', background: day.act[a.id] ? 'rgba(16,185,129,0.12)' : 'rgba(255,255,255,0.03)', border: day.act[a.id] ? '1px solid rgba(16,185,129,0.3)' : '1px solid rgba(255,255,255,0.05)' }}>
+                  style={{ padding: '12px 8px', borderRadius: 12, cursor: 'pointer', textAlign: 'center', border: day.act[a.id] ? '1px solid rgba(16,185,129,0.3)' : '1px solid rgba(255,255,255,0.05)', background: day.act[a.id] ? 'rgba(16,185,129,0.12)' : 'rgba(255,255,255,0.03)' }}>
                   <div style={{ fontSize: 20 }}>{a.icon}</div>
                   <div style={{ fontSize: 11, fontWeight: 600, color: day.act[a.id] ? '#10b981' : '#9ca3af', marginTop: 4 }}>{a.label}</div>
                 </button>
               ))}
             </div>
-
             <div style={ls}>Observações</div>
             <textarea placeholder="Como foi o dia?..." value={day.notes} onChange={e => setNotes(e.target.value)} rows={3}
               style={{ width: '100%', padding: '12px 14px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, color: '#e5e7eb', fontSize: 13, resize: 'vertical', outline: 'none', lineHeight: 1.6 }} />
-
             <div style={{ marginTop: 20, padding: 14, borderRadius: 12, background: 'rgba(234,179,8,0.05)', border: '1px solid rgba(234,179,8,0.15)' }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: '#fbbf24', marginBottom: 6 }}>📋 Regras</div>
-              <div style={{ fontSize: 11, color: '#d4a017', lineHeight: 1.8 }}>
-                Surf em jejum • Jantar 1ª hora pós-treino • Máx 1 Coca Zero/dia • 2 livres/semana • Energético só manhã • Água 3L+700ml/treino • Não pule o core!
-              </div>
+              <div style={{ fontSize: 11, color: '#d4a017', lineHeight: 1.8 }}>Surf em jejum • Jantar 1ª hora pós-treino • Máx 1 Coca Zero/dia • 2 livres/semana • Energético só manhã • Água 3L+700ml/treino • Não pule o core!</div>
             </div>
           </div>
         )}
@@ -665,7 +691,6 @@ function MainApp() {
         )}
       </div>
 
-      {/* Botão PDF fixo */}
       <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, padding: '16px 20px', paddingBottom: 28, background: 'linear-gradient(transparent, rgba(10,10,15,0.95) 30%)', zIndex: 20 }}>
         <button onClick={() => generatePDF(day, dateFull(date))}
           style={{ width: '100%', padding: '14px 0', background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none', borderRadius: 14, color: '#fff', fontSize: 15, fontWeight: 700, cursor: 'pointer', boxShadow: '0 8px 30px rgba(16,185,129,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
