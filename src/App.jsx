@@ -11,15 +11,12 @@ function dk(d) { return d.toISOString().slice(0, 10); }
 function datePretty(d) { return d.toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric', month: 'short' }); }
 function dateFull(d) { return d.toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }); }
 
-// ─── Resolve o programa e treino de um day salvo ───────────────────────────
-// Suporta formato legado (wk: 'treino1'|'treino2') e novo (program + wk)
 function resolveWorkout(day) {
   if (day.program && PROGRAMS[day.program]) {
     const prog = PROGRAMS[day.program];
     const treino = prog.treinos[day.wk] || prog.treinos['treinoA'];
     return { program: PROGRAMS[day.program], treino };
   }
-  // legado
   const map = LEGACY_WORKOUT_MAP[day.wk] || LEGACY_WORKOUT_MAP['treino1'];
   return {
     program: PROGRAMS[map.program],
@@ -29,6 +26,7 @@ function resolveWorkout(day) {
 
 const APP_PIN = '0811';
 const AUTH_KEY = 'cubo-diario-auth';
+const VISIBLE_PROGRAMS_KEY = 'cubo-visible-programs';
 
 // ─── PIN ──────────────────────────────────────────────────────────────────
 function PinScreen({ onSuccess }) {
@@ -42,17 +40,10 @@ function PinScreen({ onSuccess }) {
     setPin(next);
     setError(false);
     if (next.length === 4) {
-      if (next === APP_PIN) {
-        localStorage.setItem(AUTH_KEY, 'true');
-        onSuccess();
-      } else {
-        setError(true);
-        setShake(true);
-        setTimeout(() => { setPin(''); setShake(false); }, 600);
-      }
+      if (next === APP_PIN) { localStorage.setItem(AUTH_KEY, 'true'); onSuccess(); }
+      else { setError(true); setShake(true); setTimeout(() => { setPin(''); setShake(false); }, 600); }
     }
   };
-
   const handleDelete = () => { setPin(p => p.slice(0, -1)); setError(false); };
 
   return (
@@ -72,7 +63,7 @@ function PinScreen({ onSuccess }) {
         {[1,2,3,4,5,6,7,8,9,null,0,'⌫'].map((d, i) => (
           d === null ? <div key={i} /> :
           <button key={i} onClick={() => d === '⌫' ? handleDelete() : handleDigit(String(d))}
-            style={{ width: 68, height: 68, borderRadius: '50%', border: 'none', background: d === '⌫' ? 'transparent' : 'rgba(255,255,255,0.06)', color: d === '⌫' ? '#6b7280' : '#e5e7eb', fontSize: d === '⌫' ? 22 : 24, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.15s' }}>
+            style={{ width: 68, height: 68, borderRadius: '50%', border: 'none', background: d === '⌫' ? 'transparent' : 'rgba(255,255,255,0.06)', color: d === '⌫' ? '#6b7280' : '#e5e7eb', fontSize: d === '⌫' ? 22 : 24, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {d}
           </button>
         ))}
@@ -88,6 +79,171 @@ export default function App() {
   return <MainApp />;
 }
 
+// ─── Modal de Configurações ───────────────────────────────────────────────
+function SettingsModal({ onClose, visiblePrograms, setVisiblePrograms }) {
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
+      onClick={onClose}>
+      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }} />
+      <div style={{ position: 'relative', width: '100%', maxWidth: 480, background: '#111118', borderRadius: '20px 20px 0 0', padding: '24px 20px 40px', border: '1px solid rgba(255,255,255,0.08)' }}
+        onClick={e => e.stopPropagation()}>
+        <div style={{ width: 36, height: 4, background: 'rgba(255,255,255,0.15)', borderRadius: 2, margin: '0 auto 20px' }} />
+        <div style={{ fontSize: 16, fontWeight: 700, color: '#f9fafb', marginBottom: 6 }}>⚙️ Configurações</div>
+        <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 20 }}>Programas visíveis no seletor de treino</div>
+
+        {Object.entries(PROGRAMS).map(([pid, prog]) => {
+          const isVisible = visiblePrograms.includes(pid);
+          const isActive = prog.status === 'active';
+          return (
+            <div key={pid} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: '#e5e7eb' }}>{prog.label}</div>
+                <div style={{ fontSize: 11, color: isActive ? '#10b981' : '#6b7280', marginTop: 2 }}>
+                  {isActive ? '● Ativo' : '○ Arquivado'}
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  if (isActive) return; // programa ativo sempre visível
+                  setVisiblePrograms(prev =>
+                    prev.includes(pid) ? prev.filter(p => p !== pid) : [...prev, pid]
+                  );
+                }}
+                style={{
+                  width: 48, height: 28, borderRadius: 14, border: 'none', cursor: isActive ? 'default' : 'pointer',
+                  background: isVisible ? '#10b981' : 'rgba(255,255,255,0.1)',
+                  position: 'relative', transition: 'background 0.2s', opacity: isActive ? 0.5 : 1,
+                }}>
+                <div style={{
+                  width: 20, height: 20, borderRadius: '50%', background: '#fff',
+                  position: 'absolute', top: 4, transition: 'left 0.2s',
+                  left: isVisible ? 24 : 4,
+                }} />
+              </button>
+            </div>
+          );
+        })}
+
+        <button onClick={onClose}
+          style={{ width: '100%', marginTop: 20, padding: '14px 0', background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none', borderRadius: 12, color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
+          Fechar
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Card de Exercício com Séries ─────────────────────────────────────────
+function ExerciseCard({ e, exData, updateEx, cs }) {
+  const [expanded, setExpanded] = useState(false);
+
+  const numSets = parseInt(e.sets) || 0;
+  const series = exData.series || Array.from({ length: numSets }, () => ({ done: false, reps: 0 }));
+  const allDone = series.every(s => s.done);
+  const doneSets = series.filter(s => s.done).length;
+
+  const updateSerie = (idx, field, value) => {
+    const newSeries = series.map((s, i) => i === idx ? { ...s, [field]: value } : s);
+    const allSeriesDone = newSeries.every(s => s.done);
+    updateEx(e.id, 'series', newSeries);
+    updateEx(e.id, 'done', allSeriesDone);
+  };
+
+  return (
+    <div style={{ ...cs, background: allDone ? 'rgba(16,185,129,0.06)' : cs.background, border: allDone ? '1px solid rgba(16,185,129,0.2)' : cs.border }}>
+
+      {/* ── Linha principal (toca para expandir) ── */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
+        onClick={() => setExpanded(v => !v)}>
+        <div style={{ flex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: allDone ? '#10b981' : '#e5e7eb', textDecoration: allDone ? 'line-through' : 'none', opacity: allDone ? 0.8 : 1 }}>
+              {e.name}
+            </div>
+            {e.paired && (
+              <span style={{ fontSize: 9, fontWeight: 700, color: '#f59e0b', background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: 6, padding: '1px 6px', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                conjugado
+              </span>
+            )}
+          </div>
+          <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>
+            {e.sets}×{e.reps} • {doneSets}/{numSets} séries
+            {e.obs && <span style={{ color: '#9ca3af' }}> · {e.obs}</span>}
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 16, color: '#4b5563', transition: 'transform 0.2s', display: 'inline-block', transform: expanded ? 'rotate(180deg)' : 'none' }}>▾</span>
+        </div>
+      </div>
+
+      {/* ── Conteúdo expandido ── */}
+      {expanded && (
+        <div style={{ marginTop: 12 }}>
+
+          {/* Peso geral */}
+          {e.hw && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+              <span style={{ fontSize: 11, color: '#6b7280' }}>Peso:</span>
+              <input type="number" placeholder="kg" value={exData.w || ''}
+                onChange={ev => updateEx(e.id, 'w', ev.target.value)}
+                onClick={ev => ev.stopPropagation()}
+                style={{ width: 80, padding: '6px 10px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#e5e7eb', fontSize: 13, outline: 'none' }} />
+              <span style={{ fontSize: 11, color: '#4b5563' }}>kg</span>
+            </div>
+          )}
+
+          {/* Séries */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {series.map((s, idx) => (
+              <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', background: s.done ? 'rgba(16,185,129,0.08)' : 'rgba(255,255,255,0.03)', borderRadius: 10, border: `1px solid ${s.done ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.06)'}` }}>
+                {/* Check da série */}
+                <button onClick={() => updateSerie(idx, 'done', !s.done)}
+                  style={{ width: 28, height: 28, borderRadius: 8, border: 'none', background: s.done ? 'linear-gradient(135deg, #10b981, #059669)' : 'rgba(255,255,255,0.08)', color: s.done ? '#fff' : '#4b5563', fontSize: 13, cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {s.done ? '✓' : idx + 1}
+                </button>
+
+                <span style={{ fontSize: 11, color: '#6b7280', flexShrink: 0 }}>Série {idx + 1}</span>
+
+                {/* Contador de reps */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
+                  <button onClick={() => updateSerie(idx, 'reps', Math.max(0, (s.reps || 0) - 1))}
+                    style={{ width: 28, height: 28, borderRadius: 8, border: 'none', background: 'rgba(255,255,255,0.06)', color: '#9ca3af', fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
+                  <span style={{ fontSize: 16, fontWeight: 700, color: s.done ? '#10b981' : '#e5e7eb', minWidth: 24, textAlign: 'center' }}>{s.reps || 0}</span>
+                  <button onClick={() => updateSerie(idx, 'reps', (s.reps || 0) + 1)}
+                    style={{ width: 28, height: 28, borderRadius: 8, border: 'none', background: 'rgba(255,255,255,0.06)', color: '#9ca3af', fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Exercício conjugado */}
+          {e.paired && (
+            <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(245,158,11,0.15)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 10, color: '#f59e0b' }}>+</span>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: exData.pairedDone ? '#10b981' : '#d1d5db', textDecoration: exData.pairedDone ? 'line-through' : 'none' }}>
+                      {e.paired.name}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2, paddingLeft: 14 }}>
+                    {e.sets}×{e.paired.reps} • sem descanso
+                  </div>
+                </div>
+                <button onClick={() => updateEx(e.id, 'pairedDone', !exData.pairedDone)}
+                  style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: exData.pairedDone ? 'linear-gradient(135deg, #10b981, #059669)' : 'rgba(245,158,11,0.08)', color: exData.pairedDone ? '#fff' : '#f59e0b', fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {exData.pairedDone ? '✓' : '○'}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── MAIN ─────────────────────────────────────────────────────────────────
 function MainApp() {
   const [date, setDate]       = useState(new Date());
@@ -98,14 +254,24 @@ function MainApp() {
   const [view, setView]       = useState('today');
   const [status, setStatus]   = useState('');
   const [loading, setLoading] = useState(true);
+  const [showSettings, setShowSettings] = useState(false);
+  const [visiblePrograms, setVisiblePrograms] = useState(() => {
+    try {
+      const saved = localStorage.getItem(VISIBLE_PROGRAMS_KEY);
+      return saved ? JSON.parse(saved) : Object.keys(PROGRAMS);
+    } catch { return Object.keys(PROGRAMS); }
+  });
   const skipSave = useRef(true);
+
+  // Persiste preferência de programas visíveis
+  useEffect(() => {
+    localStorage.setItem(VISIBLE_PROGRAMS_KEY, JSON.stringify(visiblePrograms));
+  }, [visiblePrograms]);
 
   const key = dk(date);
   const day = allData[key] || emptyDay();
-
   const { treino: workout } = resolveWorkout(day);
 
-  // Load
   useEffect(() => {
     (async () => {
       setLoading(true);
@@ -116,7 +282,6 @@ function MainApp() {
     })();
   }, []);
 
-  // Auto-save
   useEffect(() => {
     if (loading || skipSave.current) return;
     const currentDay = allData[key];
@@ -144,8 +309,6 @@ function MainApp() {
   const setCal    = (f, v)     => setDay(d => ({ ...d, cal: { ...d.cal, [f]: v } }));
   const setSub    = (id, v)    => setDay(d => ({ ...d, sub: { ...d.sub, [id]: v } }));
   const setNotes  = (v)        => setDay(d => ({ ...d, notes: v }));
-
-  // Muda programa + treino
   const setProgram = (programId, treinoId) => setDay(d => ({ ...d, program: programId, wk: treinoId }));
 
   const tEx = workout.sections.reduce((a, s) => a + s.exercises.length, 0);
@@ -155,6 +318,16 @@ function MainApp() {
 
   const cs = { background: 'rgba(255,255,255,0.03)', borderRadius: 12, padding: '12px 14px', border: '1px solid rgba(255,255,255,0.05)' };
   const ls = { fontSize: 11, fontWeight: 700, color: '#10b981', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 12 };
+
+  const isLegacy = !day.program && (day.wk === 'treino1' || day.wk === 'treino2');
+  const currentProgramId = day.program ? day.program : isLegacy ? 'mes1' : ACTIVE_PROGRAM_ID;
+  const currentProgram = PROGRAMS[currentProgramId] || PROGRAMS[ACTIVE_PROGRAM_ID];
+  const isArchived = currentProgram.status === 'archived';
+
+  // Programas a mostrar no seletor (ativos sempre + arquivados se visível)
+  const programsToShow = Object.entries(PROGRAMS).filter(([pid, prog]) =>
+    prog.status === 'active' || visiblePrograms.includes(pid)
+  );
 
   if (loading) return (
     <div style={{ minHeight: '100vh', background: '#0a0a0f', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12 }}>
@@ -184,24 +357,18 @@ function MainApp() {
         </div>
         {days.length === 0 && <div style={{ textAlign: 'center', color: '#6b7280', marginTop: 60 }}>Nenhum registro ainda</div>}
         {days.map(k => {
-          const d   = allData[k];
-          const dt  = new Date(k + 'T12:00:00');
+          const d = allData[k]; const dt = new Date(k + 'T12:00:00');
           const { program: prog, treino: w } = resolveWorkout(d);
-          const te  = w.sections.reduce((a, s) => a + s.exercises.length, 0);
-          const de  = w.sections.reduce((a, s) => a + s.exercises.filter(e => (d.ex || {})[e.id]?.done).length, 0);
-          const dm  = Object.keys(d.mc || {}).filter(x => d.mc[x]).length;
-          const ds  = Object.keys(d.sp || {}).filter(x => d.sp[x]).length;
+          const te = w.sections.reduce((a, s) => a + s.exercises.length, 0);
+          const de = w.sections.reduce((a, s) => a + s.exercises.filter(e => (d.ex || {})[e.id]?.done).length, 0);
+          const dm = Object.keys(d.mc || {}).filter(x => d.mc[x]).length;
+          const ds = Object.keys(d.sp || {}).filter(x => d.sp[x]).length;
           const acts = ACTIVITIES.filter(a => (d.act || {})[a.id]);
-          const c   = d.cal || {};
-          const ct  = parseInt(c.t) || ((parseInt(c.a) || 0) + (parseInt(c.b) || 0));
-
-          // Label do treino para exibição
-          const progLabel  = prog.label || '';
+          const c = d.cal || {}; const ct = parseInt(c.t) || ((parseInt(c.a) || 0) + (parseInt(c.b) || 0));
+          const progLabel = prog.label || '';
           const treinoLabel = d.wk === 'treinoB' ? 'Treino B' : d.wk === 'treino2' ? 'Treino 2 (Mês 1)' : d.wk === 'treino1' ? 'Treino 1 (Mês 1)' : 'Treino A';
-
           return (
-            <div key={k}
-              style={{ ...cs, marginBottom: 10, cursor: 'pointer', transition: 'all 0.2s ease' }}
+            <div key={k} style={{ ...cs, marginBottom: 10, cursor: 'pointer', transition: 'all 0.2s ease' }}
               onClick={() => { setDate(new Date(k + 'T12:00:00')); setView('today'); }}
               onMouseEnter={e => e.currentTarget.style.background = 'rgba(16,185,129,0.08)'}
               onMouseLeave={e => e.currentTarget.style.background = cs.background}>
@@ -233,16 +400,11 @@ function MainApp() {
   }
 
   // ── MAIN VIEW ─────────────────────────────────────────────────────────────
-  const activeProgram   = PROGRAMS[ACTIVE_PROGRAM_ID];
-  const isLegacy = !day.program && (day.wk === 'treino1' || day.wk === 'treino2');
-  const currentProgramId = day.program ? day.program : isLegacy ? 'mes1' : ACTIVE_PROGRAM_ID;
-  const currentProgram  = PROGRAMS[currentProgramId] || activeProgram;
-  const isArchived      = currentProgram.status === 'archived';
-
   return (
     <div style={{ minHeight: '100vh', background: 'linear-gradient(145deg, #0a0a0f, #111118, #0d1117)', color: '#e5e7eb', fontFamily: "'DM Sans', sans-serif", position: 'relative' }}>
       <div style={{ position: 'fixed', top: -120, right: -120, width: 400, height: 400, background: 'radial-gradient(circle, rgba(16,185,129,0.08), transparent 70%)', pointerEvents: 'none', zIndex: 0 }} />
       {statusBadge}
+      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} visiblePrograms={visiblePrograms} setVisiblePrograms={setVisiblePrograms} />}
 
       {/* ── Header ── */}
       <div style={{ padding: '20px 20px 0', position: 'relative', zIndex: 1 }}>
@@ -254,12 +416,13 @@ function MainApp() {
             <span style={{ fontSize: 16, fontWeight: 700, color: '#10b981', letterSpacing: -0.5 }}>cubo<span style={{ fontWeight: 300 }}>saúde</span></span>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => setShowSettings(true)} style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#9ca3af', padding: '8px 12px', borderRadius: 10, fontSize: 14, cursor: 'pointer' }}>⚙️</button>
             <button onClick={() => setView('history')} style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#9ca3af', padding: '8px 12px', borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>📊</button>
             <button onClick={() => generatePDF(day, dateFull(date))} style={{ background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: 'pointer', boxShadow: '0 4px 20px rgba(16,185,129,0.3)' }}>📄</button>
           </div>
         </div>
 
-        {/* ── Navegação de data ── */}
+        {/* Data */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 16 }}>
           <button onClick={() => { const d = new Date(date); d.setDate(d.getDate() - 1); setDate(d); }}
             style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#9ca3af', width: 36, height: 36, borderRadius: 10, fontSize: 16, cursor: 'pointer' }}>‹</button>
@@ -271,11 +434,11 @@ function MainApp() {
             style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: dk(new Date()) === key ? '#2a2a2a' : '#9ca3af', width: 36, height: 36, borderRadius: 10, fontSize: 16, cursor: dk(new Date()) === key ? 'default' : 'pointer' }}>›</button>
         </div>
 
-        {/* ── Cards de progresso ── */}
+        {/* Progresso */}
         <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
           {[
-            { l: 'Treino',  v: `${dEx}/${tEx}`,            p: tEx ? (dEx/tEx)*100 : 0 },
-            { l: 'Dieta',   v: `${dM}/${TOTAL_MEALS}`,     p: TOTAL_MEALS ? (dM/TOTAL_MEALS)*100 : 0 },
+            { l: 'Treino',  v: `${dEx}/${tEx}`,               p: tEx ? (dEx/tEx)*100 : 0 },
+            { l: 'Dieta',   v: `${dM}/${TOTAL_MEALS}`,        p: TOTAL_MEALS ? (dM/TOTAL_MEALS)*100 : 0 },
             { l: 'Suplem.', v: `${dS}/${SUPPLEMENTS.length}`, p: (dS/SUPPLEMENTS.length)*100 },
           ].map((s, i) => (
             <div key={i} style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 10, padding: '10px 12px', border: '1px solid rgba(255,255,255,0.06)' }}>
@@ -289,7 +452,7 @@ function MainApp() {
         </div>
       </div>
 
-      {/* ── Recado ── */}
+      {/* Recado */}
       {showMsg && (
         <div style={{ margin: '12px 20px 0', padding: '10px 14px', background: 'rgba(16,185,129,0.08)', borderRadius: 10, border: '1px solid rgba(16,185,129,0.15)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div style={{ fontSize: 11, color: '#6ee7b7', lineHeight: 1.5, flex: 1 }}>
@@ -299,7 +462,7 @@ function MainApp() {
         </div>
       )}
 
-      {/* ── Tabs ── */}
+      {/* Tabs */}
       <div style={{ display: 'flex', gap: 4, padding: '12px 20px', position: 'sticky', top: 0, zIndex: 10, background: 'rgba(10,10,15,0.92)', backdropFilter: 'blur(16px)' }}>
         {[{ id: 'treino', l: 'Treino', i: '💪' }, { id: 'comida', l: 'Dieta', i: '🥗' }, { id: 'dia', l: 'Dia', i: '📋' }, { id: 'evolucao', l: 'Evolução', i: '📊' }].map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
@@ -311,46 +474,39 @@ function MainApp() {
 
       <div style={{ padding: '0 20px 120px', position: 'relative', zIndex: 1 }}>
 
-        {/* ══════════════════════════════════════════════
-            TAB: TREINO
-        ══════════════════════════════════════════════ */}
+        {/* ══ TAB TREINO ══ */}
         {tab === 'treino' && (
           <div>
-
-            {/* ── Seletor de Mês ── */}
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 10, color: '#4b5563', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>Programa</div>
-              <div style={{ display: 'flex', gap: 6 }}>
-                {Object.entries(PROGRAMS).map(([pid, prog]) => (
-                  <button key={pid}
-                    onClick={() => setProgram(pid, day.wk && PROGRAMS[pid].treinos[day.wk] ? day.wk : 'treinoA')}
-                    style={{ flex: 1, padding: '8px 6px', borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: 'none',
-                      background: (currentProgramId === pid)
-                        ? 'linear-gradient(135deg, #10b981, #059669)'
-                        : 'rgba(255,255,255,0.04)',
-                      color: currentProgramId === pid ? '#fff' : '#9ca3af',
-                      position: 'relative' }}>
-                    {prog.label}
-                    {prog.status === 'archived' && (
-                      <span style={{ display: 'block', fontSize: 9, fontWeight: 400, opacity: 0.7 }}>arquivado</span>
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* ── Banner de arquivado ── */}
-            {isArchived && (
-              <div style={{ marginBottom: 14, padding: '8px 12px', background: 'rgba(234,179,8,0.07)', border: '1px solid rgba(234,179,8,0.2)', borderRadius: 10, fontSize: 11, color: '#fbbf24' }}>
-                📦 Programa arquivado — apenas consulta. Registros salvos normalmente.
+            {/* Seletor de programa — só aparece se há mais de 1 visível */}
+            {programsToShow.length > 1 && (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 10, color: '#4b5563', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>Programa</div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {programsToShow.map(([pid, prog]) => (
+                    <button key={pid}
+                      onClick={() => setProgram(pid, day.wk && PROGRAMS[pid].treinos[day.wk] ? day.wk : 'treinoA')}
+                      style={{ flex: 1, padding: '8px 6px', borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: 'none',
+                        background: currentProgramId === pid ? 'linear-gradient(135deg, #10b981, #059669)' : 'rgba(255,255,255,0.04)',
+                        color: currentProgramId === pid ? '#fff' : '#9ca3af' }}>
+                      {prog.label}
+                      {prog.status === 'archived' && <span style={{ display: 'block', fontSize: 9, fontWeight: 400, opacity: 0.7 }}>arquivado</span>}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
 
-            {/* ── Seletor de Treino A/B ── */}
+            {isArchived && (
+              <div style={{ marginBottom: 14, padding: '8px 12px', background: 'rgba(234,179,8,0.07)', border: '1px solid rgba(234,179,8,0.2)', borderRadius: 10, fontSize: 11, color: '#fbbf24' }}>
+                📦 Programa arquivado — apenas consulta.
+              </div>
+            )}
+
+            {/* Seletor Treino A/B */}
             <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
               {Object.keys(currentProgram.treinos).map(tid => (
                 <button key={tid}
-                  onClick={() => setProgram(day.program || ACTIVE_PROGRAM_ID, tid)}
+                  onClick={() => setProgram(currentProgramId, tid)}
                   style={{ flex: 1, padding: '12px 8px', borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: 'none',
                     background: day.wk === tid ? 'linear-gradient(135deg, #10b981, #059669)' : 'rgba(255,255,255,0.04)',
                     color: day.wk === tid ? '#fff' : '#9ca3af' }}>
@@ -359,98 +515,21 @@ function MainApp() {
               ))}
             </div>
 
-            {/* ── Seções e exercícios ── */}
+            {/* Seções e exercícios */}
             {workout.sections.map(sec => (
               <div key={sec.name} style={{ marginBottom: 24 }}>
                 <div style={ls}>{sec.name}</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {sec.exercises.map(e => {
-                    const exData = day.ex[e.id] || {};
-                    const isDone = !!exData.done;
-
-                    return (
-                      <div key={e.id} style={{ ...cs, background: isDone ? 'rgba(16,185,129,0.06)' : cs.background, border: isDone ? '1px solid rgba(16,185,129,0.2)' : cs.border }}>
-
-                        {/* ── Linha principal ── */}
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <div style={{ flex: 1 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <div style={{ fontSize: 14, fontWeight: 600, color: isDone ? '#10b981' : '#e5e7eb', textDecoration: isDone ? 'line-through' : 'none', opacity: isDone ? 0.8 : 1 }}>
-                                {e.name}
-                              </div>
-                              {e.paired && (
-                                <span style={{ fontSize: 9, fontWeight: 700, color: '#f59e0b', background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: 6, padding: '1px 6px', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                                  conjugado
-                                </span>
-                              )}
-                            </div>
-                            <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>
-                              {e.sets}×{e.reps} • 1' desc.
-                              {e.obs && <span style={{ color: '#9ca3af' }}> · {e.obs}</span>}
-                            </div>
-                          </div>
-                          <button onClick={() => updateEx(e.id, 'done', !isDone)}
-                            style={{ width: 36, height: 36, borderRadius: 10, border: 'none', background: isDone ? 'linear-gradient(135deg, #10b981, #059669)' : 'rgba(255,255,255,0.06)', color: isDone ? '#fff' : '#4b5563', fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            {isDone ? '✓' : '○'}
-                          </button>
-                        </div>
-
-                        {/* ── Exercício conjugado (par) ── */}
-                        {e.paired && (
-                          <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(245,158,11,0.15)' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                              <div style={{ flex: 1 }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                  <span style={{ fontSize: 10, color: '#f59e0b' }}>+</span>
-                                  <div style={{ fontSize: 13, fontWeight: 600, color: exData.pairedDone ? '#10b981' : '#d1d5db', textDecoration: exData.pairedDone ? 'line-through' : 'none', opacity: exData.pairedDone ? 0.8 : 1 }}>
-                                    {e.paired.name}
-                                  </div>
-                                </div>
-                                <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2, paddingLeft: 14 }}>
-                                  {e.sets}×{e.paired.reps} • sem descanso
-                                </div>
-                              </div>
-                              <button onClick={() => updateEx(e.id, 'pairedDone', !exData.pairedDone)}
-                                style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: exData.pairedDone ? 'linear-gradient(135deg, #10b981, #059669)' : 'rgba(245,158,11,0.08)', color: exData.pairedDone ? '#fff' : '#f59e0b', fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                {exData.pairedDone ? '✓' : '○'}
-                              </button>
-                            </div>
-                            {/* Peso do conjugado (se aplicável) */}
-                            {e.paired.hw && (
-                              <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 14 }}>
-                                <span style={{ fontSize: 11, color: '#6b7280' }}>Peso:</span>
-                                <input type="number" placeholder="kg" value={exData.pairedW || ''}
-                                  onChange={ev => updateEx(e.id, 'pairedW', ev.target.value)}
-                                  style={{ width: 70, padding: '5px 8px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#e5e7eb', fontSize: 13, outline: 'none' }} />
-                                <span style={{ fontSize: 11, color: '#4b5563' }}>kg</span>
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {/* ── Campo de peso (exercício principal) ── */}
-                        {e.hw && (
-                          <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <span style={{ fontSize: 11, color: '#6b7280' }}>Peso:</span>
-                            <input type="number" placeholder="kg" value={exData.w || ''}
-                              onChange={ev => updateEx(e.id, 'w', ev.target.value)}
-                              style={{ width: 80, padding: '6px 10px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#e5e7eb', fontSize: 13, outline: 'none' }} />
-                            <span style={{ fontSize: 11, color: '#4b5563' }}>kg</span>
-                          </div>
-                        )}
-
-                      </div>
-                    );
-                  })}
+                  {sec.exercises.map(e => (
+                    <ExerciseCard key={e.id} e={e} exData={day.ex[e.id] || {}} updateEx={updateEx} cs={cs} />
+                  ))}
                 </div>
               </div>
             ))}
           </div>
         )}
 
-        {/* ══════════════════════════════════════════════
-            TAB: DIETA
-        ══════════════════════════════════════════════ */}
+        {/* ══ TAB DIETA ══ */}
         {tab === 'comida' && (
           <div>
             <div style={ls}>Hidratação</div>
@@ -533,19 +612,13 @@ function MainApp() {
           </div>
         )}
 
-        {/* ══════════════════════════════════════════════
-            TAB: DIA
-        ══════════════════════════════════════════════ */}
+        {/* ══ TAB DIA ══ */}
         {tab === 'dia' && (
           <div>
             <div style={ls}>Calorias — Garmin ⌚</div>
             <div style={{ ...cs, marginBottom: 20 }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-                {[
-                  { k: 'a', l: 'Ativas',  c: '#f59e0b', i: '🔥' },
-                  { k: 'b', l: 'Basal',   c: '#8b5cf6', i: '💤' },
-                  { k: 't', l: 'Total',   c: '#10b981', i: '⚡' },
-                ].map(c => (
+                {[{ k: 'a', l: 'Ativas', c: '#f59e0b', i: '🔥' }, { k: 'b', l: 'Basal', c: '#8b5cf6', i: '💤' }, { k: 't', l: 'Total', c: '#10b981', i: '⚡' }].map(c => (
                   <div key={c.k} style={{ textAlign: 'center' }}>
                     <div style={{ fontSize: 10, color: '#6b7280', marginBottom: 6 }}>{c.i} {c.l}</div>
                     <input type="number" placeholder="kcal" value={day.cal[c.k] || ''}
@@ -566,7 +639,7 @@ function MainApp() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 24 }}>
               {ACTIVITIES.map(a => (
                 <button key={a.id} onClick={() => toggleAct(a.id)}
-                  style={{ padding: '12px 8px', borderRadius: 12, cursor: 'pointer', textAlign: 'center', background: day.act[a.id] ? 'rgba(16,185,129,0.12)' : 'rgba(255,255,255,0.03)', border: day.act[a.id] ? '1px solid rgba(16,185,129,0.3)' : '1px solid rgba(255,255,255,0.05)' }}>
+                  style={{ padding: '12px 8px', borderRadius: 12, cursor: 'pointer', textAlign: 'center', border: 'none', background: day.act[a.id] ? 'rgba(16,185,129,0.12)' : 'rgba(255,255,255,0.03)', border: day.act[a.id] ? '1px solid rgba(16,185,129,0.3)' : '1px solid rgba(255,255,255,0.05)' }}>
                   <div style={{ fontSize: 20 }}>{a.icon}</div>
                   <div style={{ fontSize: 11, fontWeight: 600, color: day.act[a.id] ? '#10b981' : '#9ca3af', marginTop: 4 }}>{a.label}</div>
                 </button>
@@ -586,16 +659,13 @@ function MainApp() {
           </div>
         )}
 
-        {/* ══════════════════════════════════════════════
-            TAB: EVOLUÇÃO
-        ══════════════════════════════════════════════ */}
+        {/* ══ TAB EVOLUÇÃO ══ */}
         {tab === 'evolucao' && (
           <DashboardEvolucao supabaseClient={null} userId={null} allData={allData} />
         )}
-
       </div>
 
-      {/* ── Botão PDF fixo ── */}
+      {/* Botão PDF fixo */}
       <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, padding: '16px 20px', paddingBottom: 28, background: 'linear-gradient(transparent, rgba(10,10,15,0.95) 30%)', zIndex: 20 }}>
         <button onClick={() => generatePDF(day, dateFull(date))}
           style={{ width: '100%', padding: '14px 0', background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none', borderRadius: 14, color: '#fff', fontSize: 15, fontWeight: 700, cursor: 'pointer', boxShadow: '0 8px 30px rgba(16,185,129,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
