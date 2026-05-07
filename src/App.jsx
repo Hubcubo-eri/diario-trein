@@ -26,7 +26,7 @@ function resolveWorkout(day) {
 
 const APP_PIN = '0811';
 const AUTH_KEY = 'cubo-diario-auth';
-const VISIBLE_PROGRAMS_KEY = 'cubo-visible-programs';
+const VISIBLE_PROGRAMS_KEY = 'cubo-visible-programs-v2'; // v2: arquivados ocultos por padrão
 
 // ─── PIN ──────────────────────────────────────────────────────────────────
 function PinScreen({ onSuccess }) {
@@ -266,8 +266,12 @@ function MainApp() {
   const [visiblePrograms, setVisiblePrograms] = useState(() => {
     try {
       const saved = localStorage.getItem(VISIBLE_PROGRAMS_KEY);
-      // Por padrão: só programas ativos são visíveis
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        // Garante que programas ativos estão sempre na lista
+        const parsed = JSON.parse(saved);
+        const activeIds = Object.keys(PROGRAMS).filter(pid => PROGRAMS[pid].status === 'active');
+        return [...new Set([...activeIds, ...parsed.filter(pid => PROGRAMS[pid]?.status !== 'active' && parsed.includes(pid))])];
+      }
       return Object.keys(PROGRAMS).filter(pid => PROGRAMS[pid].status === 'active');
     } catch { return Object.keys(PROGRAMS).filter(pid => PROGRAMS[pid].status === 'active'); }
   });
