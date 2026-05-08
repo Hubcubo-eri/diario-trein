@@ -24,9 +24,27 @@ function resolveWorkout(day) {
   };
 }
 
+// Haptic feedback leve
+function haptic(style = 'light') {
+  if (window.navigator?.vibrate) {
+    window.navigator.vibrate(style === 'light' ? 10 : style === 'medium' ? 20 : 40);
+  }
+}
+
+// Pega último peso registrado para um exercício no histórico
+function getLastWeight(allData, exId, currentKey) {
+  const keys = Object.keys(allData).sort().reverse();
+  for (const k of keys) {
+    if (k === currentKey) continue;
+    const w = allData[k]?.ex?.[exId]?.w;
+    if (w) return w;
+  }
+  return null;
+}
+
 const APP_PIN = '0811';
 const AUTH_KEY = 'cubo-diario-auth';
-const VISIBLE_PROGRAMS_KEY = 'cubo-visible-programs-v2'; // v2: arquivados ocultos por padrão
+const VISIBLE_PROGRAMS_KEY = 'cubo-visible-programs-v2';
 
 // ─── PIN ──────────────────────────────────────────────────────────────────
 function PinScreen({ onSuccess }) {
@@ -36,12 +54,13 @@ function PinScreen({ onSuccess }) {
 
   const handleDigit = (d) => {
     if (pin.length >= 4) return;
+    haptic('light');
     const next = pin + d;
     setPin(next);
     setError(false);
     if (next.length === 4) {
       if (next === APP_PIN) { localStorage.setItem(AUTH_KEY, 'true'); onSuccess(); }
-      else { setError(true); setShake(true); setTimeout(() => { setPin(''); setShake(false); }, 600); }
+      else { setError(true); setShake(true); haptic('heavy'); setTimeout(() => { setPin(''); setShake(false); }, 600); }
     }
   };
   const handleDelete = () => { setPin(p => p.slice(0, -1)); setError(false); };
@@ -51,7 +70,7 @@ function PinScreen({ onSuccess }) {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3, marginBottom: 16 }}>
         {[0,1,2,3].map(i => <div key={i} style={{ width: 12, height: 12, borderRadius: 3, background: '#10b981' }} />)}
       </div>
-      <div style={{ fontSize: 18, fontWeight: 700, color: '#10b981', marginBottom: 4 }}>cubo<span style={{ fontWeight: 300 }}>saúde</span></div>
+      <div style={{ fontSize: 20, fontWeight: 700, color: '#10b981', marginBottom: 4 }}>cubo<span style={{ color: '#10b981' }}>.</span></div>
       <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 32 }}>Digite o PIN para acessar</div>
       <div style={{ display: 'flex', gap: 14, marginBottom: 12, animation: shake ? 'shake 0.4s' : 'none' }}>
         {[0,1,2,3].map(i => (
@@ -63,7 +82,7 @@ function PinScreen({ onSuccess }) {
         {[1,2,3,4,5,6,7,8,9,null,0,'⌫'].map((d, i) => (
           d === null ? <div key={i} /> :
           <button key={i} onClick={() => d === '⌫' ? handleDelete() : handleDigit(String(d))}
-            style={{ width: 68, height: 68, borderRadius: '50%', border: 'none', background: d === '⌫' ? 'transparent' : 'rgba(255,255,255,0.06)', color: d === '⌫' ? '#6b7280' : '#e5e7eb', fontSize: d === '⌫' ? 22 : 24, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            style={{ width: 68, height: 68, borderRadius: '50%', border: 'none', background: d === '⌫' ? 'transparent' : 'rgba(255,255,255,0.06)', color: d === '⌫' ? '#6b7280' : '#e5e7eb', fontSize: d === '⌫' ? 22 : 24, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.15s' }}>
             {d}
           </button>
         ))}
@@ -89,32 +108,26 @@ function WorkoutPickerModal({ onConfirm }) {
       <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)' }} />
       <div style={{ position: 'relative', width: '100%', maxWidth: 480, background: '#111118', borderRadius: '24px 24px 0 0', padding: '28px 24px 48px', border: '1px solid rgba(255,255,255,0.08)' }}>
         <div style={{ width: 36, height: 4, background: 'rgba(255,255,255,0.15)', borderRadius: 2, margin: '0 auto 28px' }} />
-
-        {/* Logo */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 8 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
             {[0,1,2,3].map(i => <div key={i} style={{ width: 7, height: 7, borderRadius: 2, background: '#10b981' }} />)}
           </div>
-          <span style={{ fontSize: 13, fontWeight: 700, color: '#10b981' }}>cubo<span style={{ fontWeight: 300 }}>saúde</span></span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: '#10b981' }}>cubo<span style={{ color: '#10b981' }}>.</span></span>
         </div>
-
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
           <div style={{ fontSize: 22, fontWeight: 700, color: '#f9fafb', marginBottom: 6 }}>Qual treino hoje? 💪</div>
           <div style={{ fontSize: 13, color: '#6b7280' }}>{prog.label} — selecione para começar</div>
         </div>
-
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}>
           {Object.entries(prog.treinos).map(([tid, treino]) => {
             const isSelected = selected === tid;
-            const sections = treino.sections.map(s => s.name).join(' · ');
             const totalEx = treino.sections.reduce((a, s) => a + s.exercises.length, 0);
+            const sections = treino.sections.map(s => s.name).join(' · ');
             return (
-              <button key={tid} onClick={() => setSelected(tid)}
+              <button key={tid} onClick={() => { haptic('light'); setSelected(tid); }}
                 style={{ padding: '18px 20px', borderRadius: 16, border: `2px solid ${isSelected ? '#10b981' : 'rgba(255,255,255,0.08)'}`, background: isSelected ? 'rgba(16,185,129,0.1)' : 'rgba(255,255,255,0.03)', cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: isSelected ? '#10b981' : '#f9fafb' }}>
-                    {tid === 'treinoA' ? 'Treino A' : 'Treino B'}
-                  </div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: isSelected ? '#10b981' : '#f9fafb' }}>{tid === 'treinoA' ? 'Treino A' : 'Treino B'}</div>
                   <div style={{ width: 22, height: 22, borderRadius: '50%', border: `2px solid ${isSelected ? '#10b981' : '#4b5563'}`, background: isSelected ? '#10b981' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     {isSelected && <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#fff' }} />}
                   </div>
@@ -124,8 +137,7 @@ function WorkoutPickerModal({ onConfirm }) {
             );
           })}
         </div>
-
-        <button onClick={() => selected && onConfirm(ACTIVE_PROGRAM_ID, selected)}
+        <button onClick={() => { if (selected) { haptic('medium'); onConfirm(ACTIVE_PROGRAM_ID, selected); } }}
           disabled={!selected}
           style={{ width: '100%', padding: '16px 0', background: selected ? 'linear-gradient(135deg, #10b981, #059669)' : 'rgba(255,255,255,0.06)', border: 'none', borderRadius: 14, color: selected ? '#fff' : '#4b5563', fontSize: 15, fontWeight: 700, cursor: selected ? 'pointer' : 'default', boxShadow: selected ? '0 8px 30px rgba(16,185,129,0.3)' : 'none', transition: 'all 0.2s' }}>
           Começar treino →
@@ -154,7 +166,7 @@ function SettingsModal({ onClose, visiblePrograms, setVisiblePrograms }) {
                 <div style={{ fontSize: 14, fontWeight: 600, color: '#e5e7eb' }}>{prog.label}</div>
                 <div style={{ fontSize: 11, color: isActive ? '#10b981' : '#6b7280', marginTop: 2 }}>{isActive ? '● Ativo' : '○ Arquivado'}</div>
               </div>
-              <button onClick={() => { if (isActive) return; setVisiblePrograms(prev => prev.includes(pid) ? prev.filter(p => p !== pid) : [...prev, pid]); }}
+              <button onClick={() => { if (isActive) return; haptic('light'); setVisiblePrograms(prev => prev.includes(pid) ? prev.filter(p => p !== pid) : [...prev, pid]); }}
                 style={{ width: 48, height: 28, borderRadius: 14, border: 'none', cursor: isActive ? 'default' : 'pointer', background: isVisible ? '#10b981' : 'rgba(255,255,255,0.1)', position: 'relative', transition: 'background 0.2s', opacity: isActive ? 0.5 : 1 }}>
                 <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#fff', position: 'absolute', top: 4, transition: 'left 0.2s', left: isVisible ? 24 : 4 }} />
               </button>
@@ -170,85 +182,168 @@ function SettingsModal({ onClose, visiblePrograms, setVisiblePrograms }) {
   );
 }
 
+// ─── Timer de descanso ────────────────────────────────────────────────────
+function RestTimer({ onDismiss }) {
+  const [seconds, setSeconds] = useState(60);
+  const [running, setRunning] = useState(true);
+
+  useEffect(() => {
+    if (!running) return;
+    if (seconds <= 0) { haptic('heavy'); onDismiss(); return; }
+    const t = setTimeout(() => setSeconds(s => s - 1), 1000);
+    return () => clearTimeout(t);
+  }, [seconds, running]);
+
+  useEffect(() => {
+    if (seconds === 10) haptic('medium');
+  }, [seconds]);
+
+  const pct = (seconds / 60) * 100;
+  const r = 36;
+  const circ = 2 * Math.PI * r;
+
+  return (
+    <div style={{ position: 'fixed', bottom: 100, left: '50%', transform: 'translateX(-50%)', zIndex: 150, background: '#1a1a24', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 20, padding: '16px 24px', display: 'flex', alignItems: 'center', gap: 16, boxShadow: '0 8px 40px rgba(0,0,0,0.5)', minWidth: 240 }}>
+      <svg width={88} height={88} style={{ flexShrink: 0 }}>
+        <circle cx={44} cy={44} r={r} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={4} />
+        <circle cx={44} cy={44} r={r} fill="none" stroke={seconds <= 10 ? '#f59e0b' : '#10b981'} strokeWidth={4}
+          strokeDasharray={circ} strokeDashoffset={circ * (1 - pct / 100)}
+          strokeLinecap="round" style={{ transform: 'rotate(-90deg)', transformOrigin: '44px 44px', transition: 'stroke-dashoffset 1s linear' }} />
+        <text x={44} y={50} textAnchor="middle" fill={seconds <= 10 ? '#f59e0b' : '#10b981'} fontSize={22} fontWeight={700} fontFamily="DM Sans">{seconds}</text>
+      </svg>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: '#f9fafb', marginBottom: 4 }}>Descanso</div>
+        <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 10 }}>{seconds <= 10 ? '⚡ Quase lá!' : 'Próxima série em breve'}</div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button onClick={() => { haptic('light'); setRunning(r => !r); }}
+            style={{ flex: 1, padding: '6px 0', borderRadius: 8, border: 'none', background: 'rgba(255,255,255,0.08)', color: '#9ca3af', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+            {running ? '⏸ Pausar' : '▶ Retomar'}
+          </button>
+          <button onClick={() => { haptic('light'); onDismiss(); }}
+            style={{ flex: 1, padding: '6px 0', borderRadius: 8, border: 'none', background: 'rgba(16,185,129,0.15)', color: '#10b981', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+            Pular ✕
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Card de Exercício com Séries ─────────────────────────────────────────
-function ExerciseCard({ e, exData, updateEx, cs }) {
+function ExerciseCard({ e, exData, updateEx, cs, allData, currentKey }) {
   const [expanded, setExpanded] = useState(false);
+  const [showTimer, setShowTimer] = useState(false);
+  const [justCompleted, setJustCompleted] = useState(false);
+
   const numSets = parseInt(e.sets) || 0;
   const series = exData.series || Array.from({ length: numSets }, () => ({ done: false, reps: 0 }));
   const allDone = series.every(s => s.done);
   const doneSets = series.filter(s => s.done).length;
+  const lastWeight = e.hw ? getLastWeight(allData, e.id, currentKey) : null;
 
   const updateSerie = (idx, field, value) => {
     const newSeries = series.map((s, i) => i === idx ? { ...s, [field]: value } : s);
+    const allSeriesDone = newSeries.every(s => s.done);
     updateEx(e.id, 'series', newSeries);
-    updateEx(e.id, 'done', newSeries.every(s => s.done));
+    updateEx(e.id, 'done', allSeriesDone);
+
+    // Se marcou série como feita, inicia timer de descanso (exceto última)
+    if (field === 'done' && value === true) {
+      haptic('medium');
+      const doneCount = newSeries.filter(s => s.done).length;
+      if (doneCount < numSets) setShowTimer(true);
+      // Animação de conclusão total
+      if (allSeriesDone || doneCount === numSets) {
+        haptic('heavy');
+        setJustCompleted(true);
+        setTimeout(() => setJustCompleted(false), 1200);
+      }
+    }
   };
 
   return (
-    <div style={{ ...cs, background: allDone ? 'rgba(16,185,129,0.06)' : cs.background, border: allDone ? '1px solid rgba(16,185,129,0.2)' : cs.border }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }} onClick={() => setExpanded(v => !v)}>
-        <div style={{ flex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: allDone ? '#10b981' : '#e5e7eb', textDecoration: allDone ? 'line-through' : 'none', opacity: allDone ? 0.8 : 1 }}>{e.name}</div>
+    <>
+      {showTimer && <RestTimer onDismiss={() => setShowTimer(false)} />}
+      <div style={{
+        ...cs,
+        background: allDone ? 'rgba(16,185,129,0.06)' : cs.background,
+        border: allDone ? '1px solid rgba(16,185,129,0.2)' : cs.border,
+        transform: justCompleted ? 'scale(1.02)' : 'scale(1)',
+        transition: 'transform 0.3s ease, background 0.3s ease',
+      }}>
+        {/* Linha principal */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }} onClick={() => { haptic('light'); setExpanded(v => !v); }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: allDone ? '#10b981' : '#e5e7eb', textDecoration: allDone ? 'line-through' : 'none', opacity: allDone ? 0.8 : 1 }}>{e.name}</div>
+              {e.paired && <span style={{ fontSize: 13 }}>🔗</span>}
+            </div>
+            <div style={{ fontSize: 11, color: '#6b7280', marginTop: 3, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              <span>{e.sets}×{e.reps}</span>
+              <span style={{ color: doneSets > 0 ? '#10b981' : '#4b5563' }}>• {doneSets}/{numSets} séries</span>
+              {lastWeight && <span style={{ color: '#6366f1' }}>• última: {lastWeight}kg</span>}
+              {e.obs && <span style={{ color: '#9ca3af' }}>· {e.obs}</span>}
+            </div>
+          </div>
+          <span style={{ fontSize: 16, color: '#4b5563', display: 'inline-block', transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', marginLeft: 8 }}>▾</span>
+        </div>
+
+        {/* Conteúdo expandido */}
+        {expanded && (
+          <div style={{ marginTop: 14 }}>
+            {e.hw && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, paddingBottom: 14, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                <span style={{ fontSize: 11, color: '#6b7280' }}>Peso hoje:</span>
+                <input type="number" placeholder={lastWeight ? `última: ${lastWeight}kg` : 'kg'} value={exData.w || ''}
+                  onChange={ev => updateEx(e.id, 'w', ev.target.value)} onClick={ev => ev.stopPropagation()}
+                  style={{ width: 90, padding: '7px 10px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#e5e7eb', fontSize: 14, outline: 'none' }} />
+                <span style={{ fontSize: 11, color: '#4b5563' }}>kg</span>
+                {lastWeight && <span style={{ fontSize: 10, color: '#6366f1', marginLeft: 4 }}>ant.: {lastWeight}kg</span>}
+              </div>
+            )}
+
+            {/* Séries */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {series.map((s, idx) => (
+                <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', background: s.done ? 'rgba(16,185,129,0.08)' : 'rgba(255,255,255,0.03)', borderRadius: 12, border: `1px solid ${s.done ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.06)'}`, transition: 'all 0.2s' }}>
+                  <button onClick={() => updateSerie(idx, 'done', !s.done)}
+                    style={{ width: 32, height: 32, borderRadius: 10, border: 'none', background: s.done ? 'linear-gradient(135deg, #10b981, #059669)' : 'rgba(255,255,255,0.08)', color: s.done ? '#fff' : '#6b7280', fontSize: s.done ? 14 : 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: s.done ? '0 2px 8px rgba(16,185,129,0.3)' : 'none', transition: 'all 0.2s' }}>
+                    {s.done ? '✓' : idx + 1}
+                  </button>
+                  <span style={{ fontSize: 12, color: '#6b7280', flexShrink: 0 }}>Série {idx + 1}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
+                    <button onClick={() => { haptic('light'); updateSerie(idx, 'reps', Math.max(0, (s.reps || 0) - 1)); }}
+                      style={{ width: 32, height: 32, borderRadius: 10, border: 'none', background: 'rgba(255,255,255,0.06)', color: '#9ca3af', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
+                    <span style={{ fontSize: 18, fontWeight: 700, color: s.done ? '#10b981' : '#e5e7eb', minWidth: 28, textAlign: 'center' }}>{s.reps || 0}</span>
+                    <button onClick={() => { haptic('light'); updateSerie(idx, 'reps', (s.reps || 0) + 1); }}
+                      style={{ width: 32, height: 32, borderRadius: 10, border: 'none', background: 'rgba(255,255,255,0.06)', color: '#9ca3af', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Exercício conjugado */}
             {e.paired && (
-              <span style={{ fontSize: 9, fontWeight: 700, color: '#f59e0b', background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: 6, padding: '1px 6px', textTransform: 'uppercase', letterSpacing: 0.5 }}>conjugado</span>
+              <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid rgba(245,158,11,0.15)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: 12 }}>🔗</span>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: exData.pairedDone ? '#10b981' : '#d1d5db', textDecoration: exData.pairedDone ? 'line-through' : 'none' }}>{e.paired.name}</div>
+                    </div>
+                    <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2, paddingLeft: 20 }}>{e.sets}×{e.paired.reps} • sem descanso</div>
+                  </div>
+                  <button onClick={() => { haptic('medium'); updateEx(e.id, 'pairedDone', !exData.pairedDone); }}
+                    style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: exData.pairedDone ? 'linear-gradient(135deg, #10b981, #059669)' : 'rgba(245,158,11,0.08)', color: exData.pairedDone ? '#fff' : '#f59e0b', fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {exData.pairedDone ? '✓' : '○'}
+                  </button>
+                </div>
+              </div>
             )}
           </div>
-          <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>
-            {e.sets}×{e.reps} • {doneSets}/{numSets} séries{e.obs && <span style={{ color: '#9ca3af' }}> · {e.obs}</span>}
-          </div>
-        </div>
-        <span style={{ fontSize: 16, color: '#4b5563', display: 'inline-block', transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>▾</span>
+        )}
       </div>
-
-      {expanded && (
-        <div style={{ marginTop: 12 }}>
-          {e.hw && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-              <span style={{ fontSize: 11, color: '#6b7280' }}>Peso:</span>
-              <input type="number" placeholder="kg" value={exData.w || ''} onChange={ev => updateEx(e.id, 'w', ev.target.value)} onClick={ev => ev.stopPropagation()}
-                style={{ width: 80, padding: '6px 10px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#e5e7eb', fontSize: 13, outline: 'none' }} />
-              <span style={{ fontSize: 11, color: '#4b5563' }}>kg</span>
-            </div>
-          )}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {series.map((s, idx) => (
-              <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', background: s.done ? 'rgba(16,185,129,0.08)' : 'rgba(255,255,255,0.03)', borderRadius: 10, border: `1px solid ${s.done ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.06)'}` }}>
-                <button onClick={() => updateSerie(idx, 'done', !s.done)}
-                  style={{ width: 28, height: 28, borderRadius: 8, border: 'none', background: s.done ? 'linear-gradient(135deg, #10b981, #059669)' : 'rgba(255,255,255,0.08)', color: s.done ? '#fff' : '#4b5563', fontSize: 13, cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {s.done ? '✓' : idx + 1}
-                </button>
-                <span style={{ fontSize: 11, color: '#6b7280', flexShrink: 0 }}>Série {idx + 1}</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
-                  <button onClick={() => updateSerie(idx, 'reps', Math.max(0, (s.reps || 0) - 1))}
-                    style={{ width: 28, height: 28, borderRadius: 8, border: 'none', background: 'rgba(255,255,255,0.06)', color: '#9ca3af', fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
-                  <span style={{ fontSize: 16, fontWeight: 700, color: s.done ? '#10b981' : '#e5e7eb', minWidth: 24, textAlign: 'center' }}>{s.reps || 0}</span>
-                  <button onClick={() => updateSerie(idx, 'reps', (s.reps || 0) + 1)}
-                    style={{ width: 28, height: 28, borderRadius: 8, border: 'none', background: 'rgba(255,255,255,0.06)', color: '#9ca3af', fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
-                </div>
-              </div>
-            ))}
-          </div>
-          {e.paired && (
-            <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(245,158,11,0.15)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ fontSize: 10, color: '#f59e0b' }}>+</span>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: exData.pairedDone ? '#10b981' : '#d1d5db', textDecoration: exData.pairedDone ? 'line-through' : 'none' }}>{e.paired.name}</div>
-                  </div>
-                  <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2, paddingLeft: 14 }}>{e.sets}×{e.paired.reps} • sem descanso</div>
-                </div>
-                <button onClick={() => updateEx(e.id, 'pairedDone', !exData.pairedDone)}
-                  style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: exData.pairedDone ? 'linear-gradient(135deg, #10b981, #059669)' : 'rgba(245,158,11,0.08)', color: exData.pairedDone ? '#fff' : '#f59e0b', fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {exData.pairedDone ? '✓' : '○'}
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+    </>
   );
 }
 
@@ -267,15 +362,15 @@ function MainApp() {
     try {
       const saved = localStorage.getItem(VISIBLE_PROGRAMS_KEY);
       if (saved) {
-        // Garante que programas ativos estão sempre na lista
         const parsed = JSON.parse(saved);
         const activeIds = Object.keys(PROGRAMS).filter(pid => PROGRAMS[pid].status === 'active');
-        return [...new Set([...activeIds, ...parsed.filter(pid => PROGRAMS[pid]?.status !== 'active' && parsed.includes(pid))])];
+        return [...new Set([...activeIds, ...parsed.filter(pid => PROGRAMS[pid]?.status !== 'active')])];
       }
       return Object.keys(PROGRAMS).filter(pid => PROGRAMS[pid].status === 'active');
     } catch { return Object.keys(PROGRAMS).filter(pid => PROGRAMS[pid].status === 'active'); }
   });
   const skipSave = useRef(true);
+  const touchStartX = useRef(null);
 
   useEffect(() => {
     localStorage.setItem(VISIBLE_PROGRAMS_KEY, JSON.stringify(visiblePrograms));
@@ -283,13 +378,11 @@ function MainApp() {
 
   const key = dk(date);
   const day = allData[key] || emptyDay();
+  const { treino: workout } = resolveWorkout(day);
 
-  // Dia novo = não tem registro no banco ainda (wk não foi confirmado)
   const isNewDay = !allData[key];
   const isToday = dk(new Date()) === key;
   const showWorkoutPicker = isNewDay && isToday && tab === 'treino';
-
-  const { treino: workout } = resolveWorkout(day);
 
   useEffect(() => {
     (async () => {
@@ -330,6 +423,7 @@ function MainApp() {
   const setNotes  = (v)        => setDay(d => ({ ...d, notes: v }));
 
   const confirmWorkout = (programId, treinoId) => {
+    haptic('medium');
     setDay(d => ({ ...d, program: programId, wk: treinoId, workoutConfirmed: true }));
   };
 
@@ -339,7 +433,6 @@ function MainApp() {
   const isArchived = currentProgram.status === 'archived';
   const workoutConfirmed = (day.workoutConfirmed !== false && (!!day.workoutConfirmed || isLegacy || !!day.program));
 
-  // Programas visíveis no seletor (só ativos por padrão)
   const programsToShow = Object.entries(PROGRAMS).filter(([pid, prog]) =>
     prog.status === 'active' || visiblePrograms.includes(pid)
   );
@@ -349,7 +442,39 @@ function MainApp() {
   const dM  = Object.keys(day.mc).filter(k => day.mc[k]).length;
   const dS  = Object.keys(day.sp).filter(k => day.sp[k]).length;
 
-  const cs = { background: 'rgba(255,255,255,0.03)', borderRadius: 12, padding: '12px 14px', border: '1px solid rgba(255,255,255,0.05)' };
+  // Swipe entre dias
+  const handleTouchStart = (e) => { touchStartX.current = e.touches[0].clientX; };
+  const handleTouchEnd = (e) => {
+    if (touchStartX.current === null) return;
+    const diff = touchStartX.current - e.changedTouches[0].clientX;
+    if (Math.abs(diff) > 60) {
+      if (diff > 0) { // swipe left → próximo dia
+        const d = new Date(date); d.setDate(d.getDate() + 1);
+        if (d <= new Date()) { haptic('light'); setDate(d); }
+      } else { // swipe right → dia anterior
+        const d = new Date(date); d.setDate(d.getDate() - 1);
+        haptic('light'); setDate(d);
+      }
+    }
+    touchStartX.current = null;
+  };
+
+  // Swipe entre abas
+  const tabs = ['treino', 'comida', 'dia', 'evolucao'];
+  const tabTouchStart = useRef(null);
+  const handleTabSwipeStart = (e) => { tabTouchStart.current = e.touches[0].clientX; };
+  const handleTabSwipeEnd = (e) => {
+    if (tabTouchStart.current === null) return;
+    const diff = tabTouchStart.current - e.changedTouches[0].clientX;
+    if (Math.abs(diff) > 60) {
+      const idx = tabs.indexOf(tab);
+      if (diff > 0 && idx < tabs.length - 1) { haptic('light'); setTab(tabs[idx + 1]); }
+      else if (diff < 0 && idx > 0) { haptic('light'); setTab(tabs[idx - 1]); }
+    }
+    tabTouchStart.current = null;
+  };
+
+  const cs = { background: 'rgba(255,255,255,0.03)', borderRadius: 14, padding: '14px 16px', border: '1px solid rgba(255,255,255,0.05)' };
   const ls = { fontSize: 11, fontWeight: 700, color: '#10b981', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 12 };
 
   if (loading) return (
@@ -357,7 +482,7 @@ function MainApp() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3 }}>
         {[0,1,2,3].map(i => <div key={i} style={{ width: 14, height: 14, borderRadius: 3, background: '#10b981', animation: 'pulse 1.5s infinite', animationDelay: `${i * 0.15}s` }} />)}
       </div>
-      <div style={{ color: '#10b981', fontSize: 14, fontFamily: "'DM Sans', sans-serif" }}>Carregando dados...</div>
+      <div style={{ color: '#10b981', fontSize: 14, fontFamily: "'DM Sans', sans-serif" }}>Carregando...</div>
       <style>{`@keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: 0.3 } }`}</style>
     </div>
   );
@@ -424,7 +549,8 @@ function MainApp() {
 
   // ── MAIN VIEW ─────────────────────────────────────────────────────────────
   return (
-    <div style={{ minHeight: '100vh', background: 'linear-gradient(145deg, #0a0a0f, #111118, #0d1117)', color: '#e5e7eb', fontFamily: "'DM Sans', sans-serif", position: 'relative' }}>
+    <div style={{ minHeight: '100vh', background: 'linear-gradient(145deg, #0a0a0f, #111118, #0d1117)', color: '#e5e7eb', fontFamily: "'DM Sans', sans-serif", position: 'relative' }}
+      onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
       <div style={{ position: 'fixed', top: -120, right: -120, width: 400, height: 400, background: 'radial-gradient(circle, rgba(16,185,129,0.08), transparent 70%)', pointerEvents: 'none', zIndex: 0 }} />
       {statusBadge}
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} visiblePrograms={visiblePrograms} setVisiblePrograms={setVisiblePrograms} />}
@@ -433,49 +559,56 @@ function MainApp() {
       {/* ── Header ── */}
       <div style={{ padding: '20px 20px 0', position: 'relative', zIndex: 1 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {/* Logo cubo. */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
               {[0,1,2,3].map(i => <div key={i} style={{ width: 9, height: 9, borderRadius: 2, background: '#10b981' }} />)}
             </div>
-            <span style={{ fontSize: 16, fontWeight: 700, color: '#10b981', letterSpacing: -0.5 }}>cubo<span style={{ fontWeight: 300 }}>saúde</span></span>
+            <span style={{ fontSize: 17, fontWeight: 700, color: '#f9fafb', letterSpacing: -0.5 }}>
+              cubo<span style={{ color: '#10b981' }}>.</span>
+            </span>
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={() => setShowSettings(true)} style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#9ca3af', padding: '8px 12px', borderRadius: 10, fontSize: 14, cursor: 'pointer' }}>⚙️</button>
-            <button onClick={() => setView('history')} style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#9ca3af', padding: '8px 12px', borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>📊</button>
-            <button onClick={() => generatePDF(day, dateFull(date))} style={{ background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: 'pointer', boxShadow: '0 4px 20px rgba(16,185,129,0.3)' }}>📄</button>
+          {/* Ações */}
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button onClick={() => setShowSettings(true)} style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#9ca3af', width: 38, height: 38, borderRadius: 10, fontSize: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>⚙️</button>
+            <button onClick={() => setView('history')} style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#9ca3af', width: 38, height: 38, borderRadius: 10, fontSize: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>📊</button>
+            <button onClick={() => generatePDF(day, dateFull(date))} style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#9ca3af', width: 38, height: 38, borderRadius: 10, fontSize: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>📄</button>
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 16 }}>
-          <button onClick={() => { const d = new Date(date); d.setDate(d.getDate() - 1); setDate(d); }}
+        {/* Data */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 18 }}>
+          <button onClick={() => { const d = new Date(date); d.setDate(d.getDate() - 1); haptic('light'); setDate(d); }}
             style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#9ca3af', width: 36, height: 36, borderRadius: 10, fontSize: 16, cursor: 'pointer' }}>‹</button>
           <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 12, color: '#6b7280', textTransform: 'capitalize' }}>{dateFull(date)}</div>
-            <div style={{ fontSize: 20, fontWeight: 700, color: '#f9fafb' }}>Foco no Bucho! 🔥</div>
+            <div style={{ fontSize: 11, color: '#6b7280', textTransform: 'capitalize' }}>{dateFull(date)}</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: '#f9fafb', marginTop: 2 }}>Foco no Bucho! 🔥</div>
           </div>
-          <button onClick={() => { const d = new Date(date); d.setDate(d.getDate() + 1); if (d <= new Date()) setDate(d); }}
+          <button onClick={() => { const d = new Date(date); d.setDate(d.getDate() + 1); if (d <= new Date()) { haptic('light'); setDate(d); } }}
             style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: dk(new Date()) === key ? '#2a2a2a' : '#9ca3af', width: 36, height: 36, borderRadius: 10, fontSize: 16, cursor: dk(new Date()) === key ? 'default' : 'pointer' }}>›</button>
         </div>
 
-        <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+        {/* Cards de progresso */}
+        <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
           {[
             { l: 'Treino',  v: `${dEx}/${tEx}`,               p: tEx ? (dEx/tEx)*100 : 0 },
             { l: 'Dieta',   v: `${dM}/${TOTAL_MEALS}`,        p: TOTAL_MEALS ? (dM/TOTAL_MEALS)*100 : 0 },
             { l: 'Suplem.', v: `${dS}/${SUPPLEMENTS.length}`, p: (dS/SUPPLEMENTS.length)*100 },
           ].map((s, i) => (
-            <div key={i} style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 10, padding: '10px 12px', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <div style={{ fontSize: 10, color: '#6b7280', marginBottom: 4 }}>{s.l}</div>
-              <div style={{ fontSize: 18, fontWeight: 700, color: s.p === 100 ? '#10b981' : '#f9fafb' }}>{s.v}</div>
-              <div style={{ height: 3, background: 'rgba(255,255,255,0.08)', borderRadius: 2, marginTop: 6, overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: `${s.p}%`, background: '#10b981', borderRadius: 2, transition: 'width 0.4s' }} />
+            <div key={i} style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 12, padding: '12px 14px', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <div style={{ fontSize: 10, color: '#6b7280', marginBottom: 6 }}>{s.l}</div>
+              <div style={{ fontSize: 22, fontWeight: 700, color: s.p === 100 ? '#10b981' : '#f9fafb', lineHeight: 1 }}>{s.v}</div>
+              <div style={{ height: 3, background: 'rgba(255,255,255,0.08)', borderRadius: 2, marginTop: 8, overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${s.p}%`, background: s.p === 100 ? '#10b981' : '#10b981aa', borderRadius: 2, transition: 'width 0.4s' }} />
               </div>
             </div>
           ))}
         </div>
       </div>
 
+      {/* Recado */}
       {showMsg && (
-        <div style={{ margin: '12px 20px 0', padding: '10px 14px', background: 'rgba(16,185,129,0.08)', borderRadius: 10, border: '1px solid rgba(16,185,129,0.15)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div style={{ margin: '12px 20px 0', padding: '10px 14px', background: 'rgba(16,185,129,0.06)', borderRadius: 10, border: '1px solid rgba(16,185,129,0.12)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div style={{ fontSize: 11, color: '#6ee7b7', lineHeight: 1.5, flex: 1 }}>
             <strong style={{ color: '#10b981' }}>Recado:</strong> Surf em jejum. Jantar 1ª hora pós-treino. 2 livres/semana. Não pule o core! 💪
           </div>
@@ -483,31 +616,30 @@ function MainApp() {
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: 4, padding: '12px 20px', position: 'sticky', top: 0, zIndex: 10, background: 'rgba(10,10,15,0.92)', backdropFilter: 'blur(16px)' }}>
+      {/* Tabs com swipe */}
+      <div style={{ display: 'flex', gap: 4, padding: '12px 20px', position: 'sticky', top: 0, zIndex: 10, background: 'rgba(10,10,15,0.92)', backdropFilter: 'blur(16px)' }}
+        onTouchStart={handleTabSwipeStart} onTouchEnd={handleTabSwipeEnd}>
         {[{ id: 'treino', l: 'Treino', i: '💪' }, { id: 'comida', l: 'Dieta', i: '🥗' }, { id: 'dia', l: 'Dia', i: '📋' }, { id: 'evolucao', l: 'Evolução', i: '📊' }].map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)}
-            style={{ flex: 1, padding: '10px 0', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer', background: tab === t.id ? 'rgba(16,185,129,0.15)' : 'rgba(255,255,255,0.03)', color: tab === t.id ? '#10b981' : '#6b7280', border: tab === t.id ? '1px solid rgba(16,185,129,0.25)' : '1px solid transparent' }}>
+          <button key={t.id} onClick={() => { haptic('light'); setTab(t.id); }}
+            style={{ flex: 1, padding: '10px 0', borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: 'pointer', background: tab === t.id ? 'rgba(16,185,129,0.15)' : 'rgba(255,255,255,0.03)', color: tab === t.id ? '#10b981' : '#6b7280', border: tab === t.id ? '1px solid rgba(16,185,129,0.25)' : '1px solid transparent', transition: 'all 0.15s' }}>
             {t.i} {t.l}
           </button>
         ))}
       </div>
 
-      <div style={{ padding: '0 20px 120px', position: 'relative', zIndex: 1 }}>
+      <div style={{ padding: '0 20px 80px', position: 'relative', zIndex: 1 }}>
 
         {/* ══ TAB TREINO ══ */}
         {tab === 'treino' && (
           <div>
-            {/* Seletor de programa — só se há mais de 1 visível E treino já confirmado */}
             {workoutConfirmed && programsToShow.length > 1 && (
               <div style={{ marginBottom: 12 }}>
                 <div style={{ fontSize: 10, color: '#4b5563', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>Programa</div>
                 <div style={{ display: 'flex', gap: 6 }}>
                   {programsToShow.map(([pid, prog]) => (
                     <button key={pid}
-                      onClick={() => { setDay(d => ({ ...d, program: pid, wk: PROGRAMS[pid].treinos[day.wk] ? day.wk : 'treinoA' })); }}
-                      style={{ flex: 1, padding: '8px 6px', borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: 'none',
-                        background: currentProgramId === pid ? 'linear-gradient(135deg, #10b981, #059669)' : 'rgba(255,255,255,0.04)',
-                        color: currentProgramId === pid ? '#fff' : '#9ca3af' }}>
+                      onClick={() => { haptic('light'); setDay(d => ({ ...d, program: pid, wk: PROGRAMS[pid].treinos[day.wk] ? day.wk : 'treinoA' })); }}
+                      style={{ flex: 1, padding: '8px 6px', borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: 'none', background: currentProgramId === pid ? 'linear-gradient(135deg, #10b981, #059669)' : 'rgba(255,255,255,0.04)', color: currentProgramId === pid ? '#fff' : '#9ca3af' }}>
                       {prog.label}
                       {prog.status === 'archived' && <span style={{ display: 'block', fontSize: 9, fontWeight: 400, opacity: 0.7 }}>arquivado</span>}
                     </button>
@@ -522,19 +654,19 @@ function MainApp() {
               </div>
             )}
 
-            {/* Seletor Treino A/B — com badge do treino confirmado e botão trocar */}
+            {/* Badge treino confirmado / seletor */}
             {workoutConfirmed ? (
               <div style={{ marginBottom: 20 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'rgba(16,185,129,0.08)', borderRadius: 12, border: '1px solid rgba(16,185,129,0.2)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'rgba(16,185,129,0.08)', borderRadius: 14, border: '1px solid rgba(16,185,129,0.2)' }}>
                   <div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#10b981' }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: '#10b981' }}>
                       {day.wk === 'treinoA' ? 'Treino A' : day.wk === 'treinoB' ? 'Treino B' : day.wk === 'treino1' ? 'Treino 1' : 'Treino 2'}
                     </div>
-                    <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>{currentProgram.label}</div>
+                    <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>{currentProgram.label} · {dEx}/{tEx} exercícios</div>
                   </div>
                   {isToday && (
-                    <button onClick={() => setDay(d => ({ ...d, workoutConfirmed: false }))}
-                      style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', color: '#6b7280', padding: '5px 10px', borderRadius: 8, fontSize: 11, cursor: 'pointer' }}>
+                    <button onClick={() => { haptic('light'); setDay(d => ({ ...d, workoutConfirmed: false })); }}
+                      style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', color: '#6b7280', padding: '5px 12px', borderRadius: 8, fontSize: 11, cursor: 'pointer' }}>
                       trocar
                     </button>
                   )}
@@ -544,23 +676,33 @@ function MainApp() {
               <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
                 {Object.keys(currentProgram.treinos).map(tid => (
                   <button key={tid}
-                    onClick={() => setDay(d => ({ ...d, program: ACTIVE_PROGRAM_ID, wk: tid, workoutConfirmed: true }))}
-                    style={{ flex: 1, padding: '12px 8px', borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: 'none',
-                      background: day.wk === tid ? 'linear-gradient(135deg, #10b981, #059669)' : 'rgba(255,255,255,0.04)',
-                      color: day.wk === tid ? '#fff' : '#9ca3af' }}>
+                    onClick={() => { haptic('light'); setDay(d => ({ ...d, program: ACTIVE_PROGRAM_ID, wk: tid, workoutConfirmed: true })); }}
+                    style={{ flex: 1, padding: '12px 8px', borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: 'none', background: day.wk === tid ? 'linear-gradient(135deg, #10b981, #059669)' : 'rgba(255,255,255,0.04)', color: day.wk === tid ? '#fff' : '#9ca3af' }}>
                     {tid === 'treinoA' ? 'Treino A' : tid === 'treinoB' ? 'Treino B' : tid === 'treino1' ? 'Treino 1' : 'Treino 2'}
                   </button>
                 ))}
               </div>
             )}
 
-            {/* Exercícios */}
+            {/* Barra de progresso do treino */}
+            {workoutConfirmed && tEx > 0 && (
+              <div style={{ marginBottom: 20, padding: '10px 14px', background: 'rgba(255,255,255,0.03)', borderRadius: 12, border: '1px solid rgba(255,255,255,0.05)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <span style={{ fontSize: 11, color: '#6b7280' }}>Progresso do treino</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: dEx === tEx ? '#10b981' : '#9ca3af' }}>{Math.round((dEx/tEx)*100)}%</span>
+                </div>
+                <div style={{ height: 6, background: 'rgba(255,255,255,0.06)', borderRadius: 3, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${(dEx/tEx)*100}%`, background: dEx === tEx ? '#10b981' : 'linear-gradient(90deg, #10b981, #059669)', borderRadius: 3, transition: 'width 0.4s ease' }} />
+                </div>
+              </div>
+            )}
+
             {workout.sections.map(sec => (
               <div key={sec.name} style={{ marginBottom: 24 }}>
                 <div style={ls}>{sec.name}</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {sec.exercises.map(e => (
-                    <ExerciseCard key={e.id} e={e} exData={day.ex[e.id] || {}} updateEx={updateEx} cs={cs} />
+                    <ExerciseCard key={e.id} e={e} exData={day.ex[e.id] || {}} updateEx={updateEx} cs={cs} allData={allData} currentKey={key} />
                   ))}
                 </div>
               </div>
@@ -575,11 +717,11 @@ function MainApp() {
             <div style={{ ...cs, marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 {Array.from({ length: 8 }).map((_, i) => (
-                  <button key={i} onClick={() => setWater(i < day.water ? i : i + 1)}
-                    style={{ width: 32, height: 32, borderRadius: '50%', border: 'none', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', background: i < day.water ? 'linear-gradient(135deg, #0ea5e9, #0284c7)' : 'rgba(255,255,255,0.06)', color: i < day.water ? '#fff' : '#4b5563', boxShadow: i < day.water ? '0 2px 8px rgba(14,165,233,0.3)' : 'none' }}>💧</button>
+                  <button key={i} onClick={() => { haptic('light'); setWater(i < day.water ? i : i + 1); }}
+                    style={{ width: 32, height: 32, borderRadius: '50%', border: 'none', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', background: i < day.water ? 'linear-gradient(135deg, #0ea5e9, #0284c7)' : 'rgba(255,255,255,0.06)', color: i < day.water ? '#fff' : '#4b5563', boxShadow: i < day.water ? '0 2px 8px rgba(14,165,233,0.3)' : 'none', transition: 'all 0.15s' }}>💧</button>
                 ))}
               </div>
-              <span style={{ fontSize: 18, fontWeight: 700, color: day.water >= 8 ? '#0ea5e9' : '#6b7280' }}>{day.water}/8</span>
+              <span style={{ fontSize: 20, fontWeight: 700, color: day.water >= 8 ? '#0ea5e9' : '#6b7280' }}>{day.water}/8</span>
             </div>
             {Object.entries(MEALS).map(([mk, meal]) => (
               <div key={mk} style={{ marginBottom: 10 }}>
@@ -611,8 +753,8 @@ function MainApp() {
                             <div style={{ fontSize: 13, fontWeight: 500, color: day.mc[item.id] ? '#10b981' : '#e5e7eb', textDecoration: day.mc[item.id] ? 'line-through' : 'none' }}>{item.name}</div>
                             <div style={{ fontSize: 11, color: '#6b7280' }}>{item.qty}</div>
                           </div>
-                          <button onClick={() => toggleMc(item.id)}
-                            style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: day.mc[item.id] ? '#10b981' : 'rgba(255,255,255,0.06)', color: day.mc[item.id] ? '#fff' : '#4b5563', fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <button onClick={() => { haptic('light'); toggleMc(item.id); }}
+                            style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: day.mc[item.id] ? '#10b981' : 'rgba(255,255,255,0.06)', color: day.mc[item.id] ? '#fff' : '#4b5563', fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}>
                             {day.mc[item.id] ? '✓' : '○'}
                           </button>
                         </div>
@@ -638,8 +780,8 @@ function MainApp() {
                     <div style={{ fontSize: 13, fontWeight: 600, color: day.sp[s.id] ? '#10b981' : '#e5e7eb' }}>{s.name}</div>
                     <div style={{ fontSize: 11, color: '#6b7280' }}>{s.qty} • {s.period}</div>
                   </div>
-                  <button onClick={() => toggleSp(s.id)}
-                    style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: day.sp[s.id] ? '#10b981' : 'rgba(255,255,255,0.06)', color: day.sp[s.id] ? '#fff' : '#4b5563', fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <button onClick={() => { haptic('light'); toggleSp(s.id); }}
+                    style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: day.sp[s.id] ? '#10b981' : 'rgba(255,255,255,0.06)', color: day.sp[s.id] ? '#fff' : '#4b5563', fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}>
                     {day.sp[s.id] ? '✓' : '○'}
                   </button>
                 </div>
@@ -672,9 +814,9 @@ function MainApp() {
             <div style={ls}>Atividades</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 24 }}>
               {ACTIVITIES.map(a => (
-                <button key={a.id} onClick={() => toggleAct(a.id)}
-                  style={{ padding: '12px 8px', borderRadius: 12, cursor: 'pointer', textAlign: 'center', border: day.act[a.id] ? '1px solid rgba(16,185,129,0.3)' : '1px solid rgba(255,255,255,0.05)', background: day.act[a.id] ? 'rgba(16,185,129,0.12)' : 'rgba(255,255,255,0.03)' }}>
-                  <div style={{ fontSize: 20 }}>{a.icon}</div>
+                <button key={a.id} onClick={() => { haptic('light'); toggleAct(a.id); }}
+                  style={{ padding: '12px 8px', borderRadius: 12, cursor: 'pointer', textAlign: 'center', border: day.act[a.id] ? '1px solid rgba(16,185,129,0.3)' : '1px solid rgba(255,255,255,0.05)', background: day.act[a.id] ? 'rgba(16,185,129,0.12)' : 'rgba(255,255,255,0.03)', transition: 'all 0.15s' }}>
+                  <div style={{ fontSize: 22 }}>{a.icon}</div>
                   <div style={{ fontSize: 11, fontWeight: 600, color: day.act[a.id] ? '#10b981' : '#9ca3af', marginTop: 4 }}>{a.label}</div>
                 </button>
               ))}
@@ -693,13 +835,6 @@ function MainApp() {
         {tab === 'evolucao' && (
           <DashboardEvolucao supabaseClient={null} userId={null} allData={allData} />
         )}
-      </div>
-
-      <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, padding: '16px 20px', paddingBottom: 28, background: 'linear-gradient(transparent, rgba(10,10,15,0.95) 30%)', zIndex: 20 }}>
-        <button onClick={() => generatePDF(day, dateFull(date))}
-          style={{ width: '100%', padding: '14px 0', background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none', borderRadius: 14, color: '#fff', fontSize: 15, fontWeight: 700, cursor: 'pointer', boxShadow: '0 8px 30px rgba(16,185,129,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-          📄 Gerar PDF do Diário
-        </button>
       </div>
     </div>
   );
