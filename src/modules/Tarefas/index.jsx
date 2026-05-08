@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
   'https://jfogpofhrbzjwgsbxyuv.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impmb2dwb2ZocmJ6andnc2J4eXV2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQ5MjI5MjUsImV4cCI6MjA2MDQ5ODkyNX0.MNDMeHvhCrBMTqRJDsgv9Mp2BDR14QhvHGQJQLQlbpY'
+  'sb_publishable_U9oYnGamRl_nVOmseQUn_A_SN3peIWq'
 );
 
 function haptic(s = 'light') { if (window.navigator?.vibrate) window.navigator.vibrate(s === 'light' ? 10 : 20); }

@@ -561,8 +561,9 @@ export default function BemEstar({ onBack }) {
       {/* ── Header ── */}
       <div style={{ padding: '20px 20px 0', position: 'relative', zIndex: 1 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          {/* Logo cubo. */}
+          {/* Logo cubo. + botão voltar */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button onClick={onBack} style={{ background: 'none', border: 'none', color: '#10b981', fontSize: 20, cursor: 'pointer', padding: '0 4px 0 0', lineHeight: 1 }}>←</button>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
               {[0,1,2,3].map(i => <div key={i} style={{ width: 9, height: 9, borderRadius: 2, background: '#10b981' }} />)}
             </div>
