@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -9,47 +9,41 @@ const supabase = createClient(
 function haptic(s = 'light') { if (window.navigator?.vibrate) window.navigator.vibrate(s === 'light' ? 10 : 20); }
 
 const PRIORITIES = {
-  high:   { label: 'Alta',   color: '#ef4444', bg: 'rgba(239,68,68,0.12)'   },
-  medium: { label: 'Média',  color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
-  low:    { label: 'Baixa',  color: '#6b7280', bg: 'rgba(107,114,128,0.12)' },
+  none:   { label: '—',     color: '#4b5563', bg: 'transparent' },
+  low:    { label: 'Baixa', color: '#6b7280', bg: 'rgba(107,114,128,0.12)' },
+  medium: { label: 'Média', color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
+  high:   { label: 'Alta',  color: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
 };
 
-const CATEGORIES = ['Pessoal', 'Trabalho', 'Saúde', 'Finanças', 'Estudos', 'Outro'];
+const CATEGORIES = ['Pessoal','Trabalho','Saúde','Finanças','Estudos','Outro'];
 
-function emptyTask() {
-  return { title: '', notes: '', priority: 'medium', category: 'Pessoal', due_date: '', status: 'pending' };
-}
-
-// ─── Modal de Tarefa ──────────────────────────────────────────────────────
-function TaskModal({ task, onSave, onClose, onDelete }) {
-  const [form, setForm] = useState(task || emptyTask());
-  const isEdit = !!task?.id;
-
+// ─── Sheet de detalhes da tarefa ──────────────────────────────────────────
+function TaskDetailSheet({ task, onSave, onClose, onDelete }) {
+  const [form, setForm] = useState({ ...task });
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={onClose}>
-      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)' }} />
-      <div style={{ position: 'relative', width: '100%', maxWidth: 480, background: '#111118', borderRadius: '24px 24px 0 0', padding: '24px 20px 48px', border: '1px solid rgba(255,255,255,0.08)', maxHeight: '90vh', overflowY: 'auto' }}
+    <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', alignItems: 'flex-end' }} onClick={onClose}>
+      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }} />
+      <div style={{ position: 'relative', width: '100%', maxWidth: 480, margin: '0 auto', background: '#111118', borderRadius: '20px 20px 0 0', padding: '20px 20px 40px', border: '1px solid rgba(255,255,255,0.08)', maxHeight: '80vh', overflowY: 'auto' }}
         onClick={e => e.stopPropagation()}>
-        <div style={{ width: 36, height: 4, background: 'rgba(255,255,255,0.15)', borderRadius: 2, margin: '0 auto 20px' }} />
-        <div style={{ fontSize: 16, fontWeight: 700, color: '#f9fafb', marginBottom: 20 }}>{isEdit ? 'Editar tarefa' : 'Nova tarefa'}</div>
+        <div style={{ width: 36, height: 4, background: 'rgba(255,255,255,0.15)', borderRadius: 2, margin: '0 auto 16px' }} />
 
-        {/* Título */}
-        <input placeholder="Título da tarefa" value={form.title} onChange={e => set('title', e.target.value)}
-          style={{ width: '100%', padding: '12px 14px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, color: '#f9fafb', fontSize: 15, fontWeight: 600, outline: 'none', marginBottom: 12, boxSizing: 'border-box' }} />
+        {/* Título editável */}
+        <input value={form.title} onChange={e => set('title', e.target.value)}
+          style={{ width: '100%', padding: '10px 0', background: 'transparent', border: 'none', borderBottom: '1px solid rgba(255,255,255,0.1)', color: '#f9fafb', fontSize: 16, fontWeight: 600, outline: 'none', marginBottom: 16, boxSizing: 'border-box' }} />
 
         {/* Notas */}
-        <textarea placeholder="Anotações..." value={form.notes || ''} onChange={e => set('notes', e.target.value)} rows={3}
-          style={{ width: '100%', padding: '12px 14px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, color: '#e5e7eb', fontSize: 13, resize: 'vertical', outline: 'none', lineHeight: 1.6, marginBottom: 12, boxSizing: 'border-box' }} />
+        <textarea placeholder="Adicionar nota..." value={form.notes || ''} onChange={e => set('notes', e.target.value)} rows={2}
+          style={{ width: '100%', padding: '8px 0', background: 'transparent', border: 'none', borderBottom: '1px solid rgba(255,255,255,0.06)', color: '#9ca3af', fontSize: 13, resize: 'none', outline: 'none', lineHeight: 1.6, marginBottom: 16, boxSizing: 'border-box' }} />
 
         {/* Prioridade */}
-        <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1 }}>Prioridade</div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            {Object.entries(PRIORITIES).map(([k, p]) => (
-              <button key={k} onClick={() => set('priority', k)}
-                style={{ flex: 1, padding: '8px 0', borderRadius: 10, border: `1px solid ${form.priority === k ? p.color : 'rgba(255,255,255,0.08)'}`, background: form.priority === k ? p.bg : 'transparent', color: form.priority === k ? p.color : '#6b7280', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 10, color: '#4b5563', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>Prioridade</div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {Object.entries(PRIORITIES).filter(([k]) => k !== 'none').map(([k, p]) => (
+              <button key={k} onClick={() => set('priority', form.priority === k ? 'none' : k)}
+                style={{ flex: 1, padding: '7px 0', borderRadius: 8, border: `1px solid ${form.priority === k ? p.color : 'rgba(255,255,255,0.06)'}`, background: form.priority === k ? p.bg : 'transparent', color: form.priority === k ? p.color : '#4b5563', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
                 {p.label}
               </button>
             ))}
@@ -57,12 +51,12 @@ function TaskModal({ task, onSave, onClose, onDelete }) {
         </div>
 
         {/* Categoria */}
-        <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1 }}>Categoria</div>
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 10, color: '#4b5563', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>Categoria</div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {CATEGORIES.map(c => (
-              <button key={c} onClick={() => set('category', c)}
-                style={{ padding: '6px 12px', borderRadius: 20, border: `1px solid ${form.category === c ? '#10b981' : 'rgba(255,255,255,0.08)'}`, background: form.category === c ? 'rgba(16,185,129,0.12)' : 'transparent', color: form.category === c ? '#10b981' : '#6b7280', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}>
+              <button key={c} onClick={() => set('category', form.category === c ? '' : c)}
+                style={{ padding: '5px 12px', borderRadius: 16, border: `1px solid ${form.category === c ? '#10b981' : 'rgba(255,255,255,0.06)'}`, background: form.category === c ? 'rgba(16,185,129,0.1)' : 'transparent', color: form.category === c ? '#10b981' : '#6b7280', fontSize: 12, cursor: 'pointer' }}>
                 {c}
               </button>
             ))}
@@ -71,24 +65,19 @@ function TaskModal({ task, onSave, onClose, onDelete }) {
 
         {/* Data */}
         <div style={{ marginBottom: 20 }}>
-          <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1 }}>Data limite</div>
+          <div style={{ fontSize: 10, color: '#4b5563', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>Data limite</div>
           <input type="date" value={form.due_date || ''} onChange={e => set('due_date', e.target.value)}
-            style={{ width: '100%', padding: '10px 14px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#e5e7eb', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
+            style={{ padding: '8px 12px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, color: '#e5e7eb', fontSize: 13, outline: 'none' }} />
         </div>
 
+        {/* Ações */}
         <div style={{ display: 'flex', gap: 8 }}>
-          {isEdit && (
-            <button onClick={() => { haptic('medium'); onDelete(task.id); }}
-              style={{ width: 44, height: 44, borderRadius: 12, border: '1px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.08)', color: '#ef4444', fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>🗑</button>
-          )}
+          <button onClick={() => { haptic('medium'); onDelete(task.id); }}
+            style={{ width: 40, height: 40, borderRadius: 10, border: '1px solid rgba(239,68,68,0.25)', background: 'rgba(239,68,68,0.06)', color: '#ef4444', fontSize: 15, cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>🗑</button>
           <button onClick={onClose}
-            style={{ flex: 1, padding: '13px 0', borderRadius: 12, border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: '#9ca3af', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
-            Cancelar
-          </button>
-          <button onClick={() => { if (form.title.trim()) { haptic('medium'); onSave(form); } }}
-            style={{ flex: 2, padding: '13px 0', borderRadius: 12, border: 'none', background: form.title.trim() ? 'linear-gradient(135deg, #10b981, #059669)' : 'rgba(255,255,255,0.06)', color: form.title.trim() ? '#fff' : '#4b5563', fontSize: 14, fontWeight: 700, cursor: form.title.trim() ? 'pointer' : 'default', boxShadow: form.title.trim() ? '0 4px 20px rgba(16,185,129,0.3)' : 'none' }}>
-            {isEdit ? 'Salvar' : 'Criar tarefa'}
-          </button>
+            style={{ flex: 1, padding: '11px 0', borderRadius: 10, border: '1px solid rgba(255,255,255,0.08)', background: 'transparent', color: '#9ca3af', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
+          <button onClick={() => { haptic('medium'); onSave(form); }}
+            style={{ flex: 2, padding: '11px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 16px rgba(16,185,129,0.25)' }}>Salvar</button>
         </div>
       </div>
     </div>
@@ -99,30 +88,21 @@ function TaskModal({ task, onSave, onClose, onDelete }) {
 function NoteModal({ note, onSave, onClose, onDelete }) {
   const [form, setForm] = useState(note || { title: '', content: '' });
   const isEdit = !!note?.id;
-
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={onClose}>
-      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)' }} />
-      <div style={{ position: 'relative', width: '100%', maxWidth: 480, background: '#111118', borderRadius: '24px 24px 0 0', padding: '24px 20px 48px', border: '1px solid rgba(255,255,255,0.08)', maxHeight: '90vh', overflowY: 'auto' }}
+    <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', alignItems: 'flex-end' }} onClick={onClose}>
+      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }} />
+      <div style={{ position: 'relative', width: '100%', maxWidth: 480, margin: '0 auto', background: '#111118', borderRadius: '20px 20px 0 0', padding: '20px 20px 40px', border: '1px solid rgba(255,255,255,0.08)', maxHeight: '85vh', overflowY: 'auto' }}
         onClick={e => e.stopPropagation()}>
-        <div style={{ width: 36, height: 4, background: 'rgba(255,255,255,0.15)', borderRadius: 2, margin: '0 auto 20px' }} />
-        <div style={{ fontSize: 16, fontWeight: 700, color: '#f9fafb', marginBottom: 20 }}>{isEdit ? 'Editar nota' : 'Nova nota'}</div>
-
+        <div style={{ width: 36, height: 4, background: 'rgba(255,255,255,0.15)', borderRadius: 2, margin: '0 auto 16px' }} />
         <input placeholder="Título (opcional)" value={form.title || ''} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-          style={{ width: '100%', padding: '10px 14px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#f9fafb', fontSize: 14, fontWeight: 600, outline: 'none', marginBottom: 12, boxSizing: 'border-box' }} />
-
-        <textarea placeholder="Escreva sua nota..." value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} rows={8}
-          style={{ width: '100%', padding: '12px 14px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, color: '#e5e7eb', fontSize: 14, resize: 'vertical', outline: 'none', lineHeight: 1.7, marginBottom: 20, boxSizing: 'border-box' }} />
-
+          style={{ width: '100%', padding: '10px 0', background: 'transparent', border: 'none', borderBottom: '1px solid rgba(255,255,255,0.1)', color: '#f9fafb', fontSize: 15, fontWeight: 600, outline: 'none', marginBottom: 14, boxSizing: 'border-box' }} />
+        <textarea placeholder="Escreva sua nota..." value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} rows={10}
+          style={{ width: '100%', padding: '0', background: 'transparent', border: 'none', color: '#e5e7eb', fontSize: 14, resize: 'none', outline: 'none', lineHeight: 1.7, marginBottom: 20, boxSizing: 'border-box' }} />
         <div style={{ display: 'flex', gap: 8 }}>
-          {isEdit && (
-            <button onClick={() => { haptic('medium'); onDelete(note.id); }}
-              style={{ width: 44, height: 44, borderRadius: 12, border: '1px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.08)', color: '#ef4444', fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>🗑</button>
-          )}
-          <button onClick={onClose}
-            style={{ flex: 1, padding: '13px 0', borderRadius: 12, border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: '#9ca3af', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
+          {isEdit && <button onClick={() => { haptic('medium'); onDelete(note.id); }} style={{ width: 40, height: 40, borderRadius: 10, border: '1px solid rgba(239,68,68,0.25)', background: 'rgba(239,68,68,0.06)', color: '#ef4444', fontSize: 15, cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>🗑</button>}
+          <button onClick={onClose} style={{ flex: 1, padding: '11px 0', borderRadius: 10, border: '1px solid rgba(255,255,255,0.08)', background: 'transparent', color: '#9ca3af', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
           <button onClick={() => { if (form.content.trim()) { haptic('medium'); onSave(form); } }}
-            style={{ flex: 2, padding: '13px 0', borderRadius: 12, border: 'none', background: form.content.trim() ? 'linear-gradient(135deg, #10b981, #059669)' : 'rgba(255,255,255,0.06)', color: form.content.trim() ? '#fff' : '#4b5563', fontSize: 14, fontWeight: 700, cursor: form.content.trim() ? 'pointer' : 'default' }}>
+            style={{ flex: 2, padding: '11px 0', borderRadius: 10, border: 'none', background: form.content.trim() ? 'linear-gradient(135deg, #10b981, #059669)' : 'rgba(255,255,255,0.06)', color: form.content.trim() ? '#fff' : '#4b5563', fontSize: 13, fontWeight: 700, cursor: form.content.trim() ? 'pointer' : 'default' }}>
             {isEdit ? 'Salvar' : 'Criar nota'}
           </button>
         </div>
@@ -133,13 +113,15 @@ function NoteModal({ note, onSave, onClose, onDelete }) {
 
 // ─── MAIN ─────────────────────────────────────────────────────────────────
 export default function Tarefas({ onBack }) {
-  const [tasks, setTasks]     = useState([]);
-  const [notes, setNotes]     = useState([]);
-  const [tab, setTab]         = useState('tarefas');
-  const [filter, setFilter]   = useState('all');
-  const [taskModal, setTaskModal] = useState(null); // null | 'new' | task obj
+  const [tasks, setTasks]         = useState([]);
+  const [notes, setNotes]         = useState([]);
+  const [tab, setTab]             = useState('tarefas');
+  const [filter, setFilter]       = useState('pending');
+  const [detailTask, setDetailTask] = useState(null);
   const [noteModal, setNoteModal] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading]     = useState(true);
+  const [input, setInput]         = useState('');
+  const inputRef = useRef(null);
 
   useEffect(() => { loadData(); }, []);
 
@@ -154,34 +136,36 @@ export default function Tarefas({ onBack }) {
     setLoading(false);
   }
 
-  async function saveTask(form) {
-    if (form.id) {
-      await supabase.from('tasks').update({ ...form, updated_at: new Date() }).eq('id', form.id);
-    } else {
-      await supabase.from('tasks').insert(form);
-    }
-    setTaskModal(null);
+  // Criar tarefa rápida ao pressionar Enter
+  async function quickCreate(e) {
+    if (e.key !== 'Enter' || !input.trim()) return;
+    haptic('medium');
+    await supabase.from('tasks').insert({ title: input.trim(), status: 'pending', priority: 'none' });
+    setInput('');
+    loadData();
+  }
+
+  async function updateTask(form) {
+    await supabase.from('tasks').update({ ...form, updated_at: new Date() }).eq('id', form.id);
+    setDetailTask(null);
     loadData();
   }
 
   async function deleteTask(id) {
     await supabase.from('tasks').delete().eq('id', id);
-    setTaskModal(null);
+    setDetailTask(null);
     loadData();
   }
 
   async function toggleTask(id, status) {
     haptic('medium');
-    await supabase.from('tasks').update({ status: status === 'done' ? 'pending' : 'done', updated_at: new Date() }).eq('id', id);
+    await supabase.from('tasks').update({ status: status === 'done' ? 'pending' : 'done' }).eq('id', id);
     loadData();
   }
 
   async function saveNote(form) {
-    if (form.id) {
-      await supabase.from('notes').update({ ...form, updated_at: new Date() }).eq('id', form.id);
-    } else {
-      await supabase.from('notes').insert(form);
-    }
+    if (form.id) await supabase.from('notes').update({ ...form, updated_at: new Date() }).eq('id', form.id);
+    else await supabase.from('notes').insert(form);
     setNoteModal(null);
     loadData();
   }
@@ -194,60 +178,71 @@ export default function Tarefas({ onBack }) {
 
   const filteredTasks = tasks.filter(t => {
     if (filter === 'pending') return t.status === 'pending';
-    if (filter === 'done') return t.status === 'done';
+    if (filter === 'done')    return t.status === 'done';
     return true;
   });
 
   const pendingCount = tasks.filter(t => t.status === 'pending').length;
-
-  const cs = { background: 'rgba(255,255,255,0.03)', borderRadius: 14, padding: '14px 16px', border: '1px solid rgba(255,255,255,0.05)' };
+  const today = new Date().toISOString().slice(0, 10);
 
   return (
     <div style={{ minHeight: '100vh', background: 'linear-gradient(145deg, #0a0a0f, #111118, #0d1117)', color: '#e5e7eb', fontFamily: "'DM Sans', sans-serif" }}>
-      {taskModal !== null && (
-        <TaskModal task={taskModal === 'new' ? null : taskModal} onSave={saveTask} onClose={() => setTaskModal(null)} onDelete={deleteTask} />
-      )}
-      {noteModal !== null && (
-        <NoteModal note={noteModal === 'new' ? null : noteModal} onSave={saveNote} onClose={() => setNoteModal(null)} onDelete={deleteNote} />
-      )}
+
+      {detailTask && <TaskDetailSheet task={detailTask} onSave={updateTask} onClose={() => setDetailTask(null)} onDelete={deleteTask} />}
+      {noteModal !== null && <NoteModal note={noteModal === 'new' ? null : noteModal} onSave={saveNote} onClose={() => setNoteModal(null)} onDelete={deleteNote} />}
 
       {/* Header */}
-      <div style={{ padding: '20px 20px 0' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <button onClick={onBack} style={{ background: 'none', border: 'none', color: '#10b981', fontSize: 20, cursor: 'pointer', padding: 0 }}>←</button>
+      <div style={{ padding: '20px 20px 0', position: 'sticky', top: 0, zIndex: 10, background: 'rgba(10,10,15,0.95)', backdropFilter: 'blur(16px)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button onClick={onBack} style={{ background: 'none', border: 'none', color: '#10b981', fontSize: 20, cursor: 'pointer', padding: '0 4px 0 0' }}>←</button>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
               {[0,1,2,3].map(i => <div key={i} style={{ width: 9, height: 9, borderRadius: 2, background: '#10b981' }} />)}
             </div>
             <span style={{ fontSize: 17, fontWeight: 700, color: '#f9fafb' }}>cubo<span style={{ color: '#10b981' }}>.</span></span>
           </div>
-          <button onClick={() => { haptic('light'); tab === 'tarefas' ? setTaskModal('new') : setNoteModal('new'); }}
-            style={{ width: 38, height: 38, borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff', fontSize: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 16px rgba(16,185,129,0.3)' }}>+</button>
-        </div>
-
-        {/* Título + stats */}
-        <div style={{ marginTop: 20, marginBottom: 16 }}>
-          <div style={{ fontSize: 24, fontWeight: 700, color: '#f9fafb' }}>
-            {tab === 'tarefas' ? 'Tarefas' : 'Notas'} {tab === 'tarefas' && pendingCount > 0 && <span style={{ fontSize: 14, fontWeight: 600, color: '#10b981', background: 'rgba(16,185,129,0.12)', padding: '2px 8px', borderRadius: 20, marginLeft: 8 }}>{pendingCount}</span>}
-          </div>
+          {tab === 'notas' && (
+            <button onClick={() => setNoteModal('new')}
+              style={{ width: 36, height: 36, borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff', fontSize: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+          )}
         </div>
 
         {/* Tabs */}
-        <div style={{ display: 'flex', gap: 4, marginBottom: 16 }}>
-          {[{ id: 'tarefas', l: '✅ Tarefas' }, { id: 'notas', l: '📝 Notas' }].map(t => (
+        <div style={{ display: 'flex', gap: 4, marginBottom: 14 }}>
+          {[{ id: 'tarefas', l: '✅ Tarefas', badge: pendingCount }, { id: 'notas', l: '📝 Notas' }].map(t => (
             <button key={t.id} onClick={() => { haptic('light'); setTab(t.id); }}
-              style={{ flex: 1, padding: '10px 0', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer', background: tab === t.id ? 'rgba(16,185,129,0.15)' : 'rgba(255,255,255,0.03)', color: tab === t.id ? '#10b981' : '#6b7280', border: tab === t.id ? '1px solid rgba(16,185,129,0.25)' : '1px solid transparent' }}>
+              style={{ flex: 1, padding: '10px 0', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer', background: tab === t.id ? 'rgba(16,185,129,0.15)' : 'rgba(255,255,255,0.03)', color: tab === t.id ? '#10b981' : '#6b7280', border: tab === t.id ? '1px solid rgba(16,185,129,0.25)' : '1px solid transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
               {t.l}
+              {t.badge > 0 && <span style={{ fontSize: 10, fontWeight: 700, background: '#10b981', color: '#fff', borderRadius: 10, padding: '1px 6px' }}>{t.badge}</span>}
             </button>
           ))}
         </div>
 
-        {/* Filtros de tarefas */}
+        {/* Entrada rápida — só na aba tarefas */}
         {tab === 'tarefas' && (
-          <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
-            {[{ id: 'all', l: 'Todas' }, { id: 'pending', l: 'Pendentes' }, { id: 'done', l: 'Concluídas' }].map(f => (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'rgba(255,255,255,0.04)', borderRadius: 14, border: '1px solid rgba(255,255,255,0.07)', marginBottom: 14 }}>
+            <span style={{ fontSize: 16, color: '#4b5563' }}>+</span>
+            <input
+              ref={inputRef}
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={quickCreate}
+              placeholder="O que precisa fazer? (Enter para criar)"
+              style={{ flex: 1, background: 'transparent', border: 'none', color: '#f9fafb', fontSize: 14, outline: 'none', caretColor: '#10b981' }}
+            />
+            {input.trim() && (
+              <button onClick={() => quickCreate({ key: 'Enter' })}
+                style={{ width: 28, height: 28, borderRadius: 8, border: 'none', background: '#10b981', color: '#fff', fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>↵</button>
+            )}
+          </div>
+        )}
+
+        {/* Filtros */}
+        {tab === 'tarefas' && (
+          <div style={{ display: 'flex', gap: 6, paddingBottom: 14 }}>
+            {[{ id: 'pending', l: 'Pendentes' }, { id: 'done', l: 'Concluídas' }, { id: 'all', l: 'Todas' }].map(f => (
               <button key={f.id} onClick={() => setFilter(f.id)}
-                style={{ padding: '6px 14px', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: 'none', background: filter === f.id ? 'rgba(16,185,129,0.15)' : 'rgba(255,255,255,0.04)', color: filter === f.id ? '#10b981' : '#6b7280' }}>
+                style={{ padding: '5px 14px', borderRadius: 16, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: 'none', background: filter === f.id ? 'rgba(16,185,129,0.15)' : 'rgba(255,255,255,0.04)', color: filter === f.id ? '#10b981' : '#6b7280', transition: 'all 0.15s' }}>
                 {f.l}
               </button>
             ))}
@@ -263,32 +258,45 @@ export default function Tarefas({ onBack }) {
         {!loading && tab === 'tarefas' && (
           <div>
             {filteredTasks.length === 0 && (
-              <div style={{ textAlign: 'center', color: '#6b7280', marginTop: 60 }}>
-                <div style={{ fontSize: 40, marginBottom: 12 }}>✅</div>
-                <div>{filter === 'done' ? 'Nenhuma tarefa concluída' : 'Nenhuma tarefa pendente'}</div>
+              <div style={{ textAlign: 'center', color: '#4b5563', paddingTop: 48 }}>
+                <div style={{ fontSize: 40, marginBottom: 10 }}>{filter === 'done' ? '🎉' : '✅'}</div>
+                <div style={{ fontSize: 14 }}>{filter === 'done' ? 'Nenhuma tarefa concluída' : 'Tudo limpo por aqui!'}</div>
+                {filter === 'pending' && <div style={{ fontSize: 12, marginTop: 6, color: '#4b5563' }}>Digite acima e pressione Enter</div>}
               </div>
             )}
             {filteredTasks.map(task => {
-              const p = PRIORITIES[task.priority] || PRIORITIES.medium;
+              const p = PRIORITIES[task.priority || 'none'];
               const isDone = task.status === 'done';
-              const isOverdue = task.due_date && !isDone && new Date(task.due_date) < new Date();
+              const isOverdue = task.due_date && !isDone && task.due_date < today;
               return (
-                <div key={task.id} style={{ ...cs, marginBottom: 10, opacity: isDone ? 0.6 : 1, transition: 'opacity 0.2s' }}>
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                    <button onClick={() => toggleTask(task.id, task.status)}
-                      style={{ width: 26, height: 26, borderRadius: 8, border: `2px solid ${isDone ? '#10b981' : p.color}`, background: isDone ? '#10b981' : 'transparent', color: '#fff', fontSize: 13, cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 1, transition: 'all 0.2s' }}>
-                      {isDone ? '✓' : ''}
-                    </button>
-                    <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => { haptic('light'); setTaskModal(task); }}>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: isDone ? '#6b7280' : '#f9fafb', textDecoration: isDone ? 'line-through' : 'none' }}>{task.title}</div>
-                      {task.notes && <div style={{ fontSize: 12, color: '#6b7280', marginTop: 3, lineHeight: 1.4 }}>{task.notes.slice(0, 80)}{task.notes.length > 80 ? '...' : ''}</div>}
-                      <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-                        <span style={{ fontSize: 10, fontWeight: 600, color: p.color, background: p.bg, padding: '2px 8px', borderRadius: 10 }}>{p.label}</span>
-                        {task.category && <span style={{ fontSize: 10, color: '#6b7280', background: 'rgba(255,255,255,0.06)', padding: '2px 8px', borderRadius: 10 }}>{task.category}</span>}
-                        {task.due_date && <span style={{ fontSize: 10, color: isOverdue ? '#ef4444' : '#6b7280' }}>{isOverdue ? '⚠️ ' : '📅 '}{new Date(task.due_date + 'T12:00:00').toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' })}</span>}
-                      </div>
+                <div key={task.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                  {/* Check */}
+                  <button onClick={() => toggleTask(task.id, task.status)}
+                    style={{ width: 24, height: 24, borderRadius: 7, border: `2px solid ${isDone ? '#10b981' : p.color !== '#4b5563' ? p.color : 'rgba(255,255,255,0.15)'}`, background: isDone ? '#10b981' : 'transparent', color: '#fff', fontSize: 12, cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}>
+                    {isDone ? '✓' : ''}
+                  </button>
+                  {/* Conteúdo */}
+                  <div style={{ flex: 1, cursor: 'pointer', minWidth: 0 }} onClick={() => { haptic('light'); setDetailTask(task); }}>
+                    <div style={{ fontSize: 14, fontWeight: 500, color: isDone ? '#4b5563' : '#f9fafb', textDecoration: isDone ? 'line-through' : 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {task.title}
+                    </div>
+                    {/* Tags */}
+                    <div style={{ display: 'flex', gap: 6, marginTop: 3, flexWrap: 'wrap', alignItems: 'center' }}>
+                      {task.priority && task.priority !== 'none' && (
+                        <span style={{ fontSize: 10, fontWeight: 600, color: p.color }}>{p.label}</span>
+                      )}
+                      {task.category && <span style={{ fontSize: 10, color: '#6b7280' }}>{task.category}</span>}
+                      {task.due_date && (
+                        <span style={{ fontSize: 10, color: isOverdue ? '#ef4444' : '#6b7280' }}>
+                          {isOverdue ? '⚠️ ' : '📅 '}
+                          {new Date(task.due_date + 'T12:00:00').toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' })}
+                        </span>
+                      )}
+                      {task.notes && <span style={{ fontSize: 10, color: '#4b5563' }}>📝</span>}
                     </div>
                   </div>
+                  {/* Seta */}
+                  <span style={{ fontSize: 14, color: '#2a2a3a', flexShrink: 0 }}>›</span>
                 </div>
               );
             })}
@@ -299,18 +307,18 @@ export default function Tarefas({ onBack }) {
         {!loading && tab === 'notas' && (
           <div>
             {notes.length === 0 && (
-              <div style={{ textAlign: 'center', color: '#6b7280', marginTop: 60 }}>
-                <div style={{ fontSize: 40, marginBottom: 12 }}>📝</div>
-                <div>Nenhuma nota ainda</div>
+              <div style={{ textAlign: 'center', color: '#4b5563', paddingTop: 48 }}>
+                <div style={{ fontSize: 40, marginBottom: 10 }}>📝</div>
+                <div style={{ fontSize: 14 }}>Nenhuma nota ainda</div>
               </div>
             )}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               {notes.map(note => (
                 <div key={note.id} onClick={() => { haptic('light'); setNoteModal(note); }}
-                  style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 14, padding: '14px', border: '1px solid rgba(255,255,255,0.06)', cursor: 'pointer', minHeight: 100 }}>
+                  style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 14, padding: '14px', border: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer', minHeight: 90 }}>
                   {note.title && <div style={{ fontSize: 13, fontWeight: 700, color: '#f9fafb', marginBottom: 6 }}>{note.title}</div>}
-                  <div style={{ fontSize: 12, color: '#9ca3af', lineHeight: 1.5 }}>{note.content.slice(0, 100)}{note.content.length > 100 ? '...' : ''}</div>
-                  <div style={{ fontSize: 10, color: '#4b5563', marginTop: 8 }}>{new Date(note.created_at).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' })}</div>
+                  <div style={{ fontSize: 12, color: '#6b7280', lineHeight: 1.5 }}>{note.content.slice(0, 90)}{note.content.length > 90 ? '...' : ''}</div>
+                  <div style={{ fontSize: 10, color: '#2a2a3a', marginTop: 8 }}>{new Date(note.created_at).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' })}</div>
                 </div>
               ))}
             </div>
