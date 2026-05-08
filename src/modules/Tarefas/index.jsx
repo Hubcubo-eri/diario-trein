@@ -138,10 +138,12 @@ export default function Tarefas({ onBack }) {
 
   // Criar tarefa rápida ao pressionar Enter
   async function quickCreate(e) {
-    if (e.key !== 'Enter' || !input.trim()) return;
+    if (e && e.key !== undefined && e.key !== 'Enter') return;
+    if (!input.trim()) return;
     haptic('medium');
-    await supabase.from('tasks').insert({ title: input.trim(), status: 'pending', priority: 'none' });
+    const title = input.trim();
     setInput('');
+    await supabase.from('tasks').insert({ title, status: 'pending', priority: 'none' });
     loadData();
   }
 
@@ -227,6 +229,7 @@ export default function Tarefas({ onBack }) {
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={quickCreate}
+              onKeyPress={quickCreate}
               placeholder="O que precisa fazer? (Enter para criar)"
               style={{ flex: 1, background: 'transparent', border: 'none', color: '#f9fafb', fontSize: 14, outline: 'none', caretColor: '#10b981' }}
             />
