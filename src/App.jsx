@@ -382,7 +382,8 @@ function MainApp() {
 
   const isNewDay = !allData[key];
   const isToday = dk(new Date()) === key;
-  const showWorkoutPicker = isNewDay && isToday && tab === 'treino';
+  const isRestDay = !!day.restDay;
+  const showWorkoutPicker = isNewDay && isToday && tab === 'treino' && !isRestDay;
 
   useEffect(() => {
     (async () => {
@@ -417,6 +418,7 @@ function MainApp() {
   const toggleMc  = (id)       => setDay(d => ({ ...d, mc: { ...d.mc, [id]: !d.mc[id] } }));
   const toggleSp  = (id)       => setDay(d => ({ ...d, sp: { ...d.sp, [id]: !d.sp[id] } }));
   const toggleAct = (id)       => setDay(d => ({ ...d, act: { ...d.act, [id]: !d.act[id] } }));
+  const toggleRestDay = ()     => setDay(d => ({ ...d, restDay: !d.restDay }));
   const setWater  = (n)        => setDay(d => ({ ...d, water: n }));
   const setCal    = (f, v)     => setDay(d => ({ ...d, cal: { ...d.cal, [f]: v } }));
   const setSub    = (id, v)    => setDay(d => ({ ...d, sub: { ...d.sub, [id]: v } }));
@@ -632,6 +634,15 @@ function MainApp() {
         {/* ══ TAB TREINO ══ */}
         {tab === 'treino' && (
           <div>
+            {/* Banner dia de descanso */}
+            {isRestDay && (
+              <div style={{ marginBottom: 20, padding: '20px 16px', background: 'rgba(99,102,241,0.08)', borderRadius: 14, border: '1px solid rgba(99,102,241,0.2)', textAlign: 'center' }}>
+                <div style={{ fontSize: 32, marginBottom: 8 }}>🛌</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: '#a5b4fc', marginBottom: 4 }}>Dia de Descanso</div>
+                <div style={{ fontSize: 12, color: '#6b7280' }}>Recuperação é parte do treino. 💪</div>
+              </div>
+            )}
+
             {workoutConfirmed && programsToShow.length > 1 && (
               <div style={{ marginBottom: 12 }}>
                 <div style={{ fontSize: 10, color: '#4b5563', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>Programa</div>
@@ -812,6 +823,20 @@ function MainApp() {
               )}
             </div>
             <div style={ls}>Atividades</div>
+            {/* Botão dia de descanso */}
+            <button onClick={() => { haptic('medium'); toggleRestDay(); }}
+              style={{ width: '100%', marginBottom: 12, padding: '14px 16px', borderRadius: 14, cursor: 'pointer', textAlign: 'left', border: isRestDay ? '1px solid rgba(99,102,241,0.4)' : '1px solid rgba(255,255,255,0.06)', background: isRestDay ? 'rgba(99,102,241,0.12)' : 'rgba(255,255,255,0.03)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', transition: 'all 0.2s' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span style={{ fontSize: 22 }}>🛌</span>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: isRestDay ? '#a5b4fc' : '#e5e7eb' }}>Dia de Descanso</div>
+                  <div style={{ fontSize: 11, color: '#6b7280', marginTop: 1 }}>Sem treino hoje</div>
+                </div>
+              </div>
+              <div style={{ width: 48, height: 28, borderRadius: 14, background: isRestDay ? '#6366f1' : 'rgba(255,255,255,0.1)', position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}>
+                <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#fff', position: 'absolute', top: 4, left: isRestDay ? 24 : 4, transition: 'left 0.2s' }} />
+              </div>
+            </button>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 24 }}>
               {ACTIVITIES.map(a => (
                 <button key={a.id} onClick={() => { haptic('light'); toggleAct(a.id); }}
