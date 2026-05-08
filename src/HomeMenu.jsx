@@ -20,6 +20,15 @@ const MODULES = [
     border: 'rgba(99,102,241,0.25)',
   },
   {
+    id: 'crm',
+    label: 'CRM',
+    desc: 'Pipeline, leads e metas',
+    icon: '🎯',
+    color: '#8b5cf6',
+    bg: 'rgba(139,92,246,0.1)',
+    border: 'rgba(139,92,246,0.25)',
+  },
+  {
     id: 'financeiro',
     label: 'Financeiro',
     desc: 'Contas, gastos e metas',
