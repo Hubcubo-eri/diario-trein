@@ -20,6 +20,15 @@ const MODULES = [
     border: 'rgba(99,102,241,0.25)',
   },
   {
+    id: 'financeiro',
+    label: 'Financeiro',
+    desc: 'Contas, gastos e metas',
+    icon: '💵',
+    color: '#f59e0b',
+    bg: 'rgba(245,158,11,0.1)',
+    border: 'rgba(245,158,11,0.25)',
+  },
+  {
     id: 'calendario',
     label: 'Calendário',
     desc: 'Compromissos e agenda',
