@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
-  'https://debexbvujauikjosmtqx.supabase.co',
+  'https://jfogpofhrbzjwgsbxyuv.supabase.co',
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRlYmV4YnZ1amF1aWtqb3NtdHF4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUwMjIzNjQsImV4cCI6MjA2MDU5ODM2NH0.D1yDHNFFiFMy6DkNFhLiUWMFMJAFJKFJ0B3fxGEOWK0'
 );
 
@@ -183,8 +183,8 @@ function LeadProfile({lead,funis,onBack,onUpdate,onDelete}){
   async function loadData(){
     setLoading(true);
     const[{data:a},{data:t}]=await Promise.all([
-      supabase.from('atividades').select('*').eq('lead_id',lead.id).order('data_hora',{ascending:false}),
-      supabase.from('tarefas').select('*').eq('lead_id',lead.id).order('created_at',{ascending:false}),
+      supabase.from('crm_atividades').select('*').eq('lead_id',lead.id).order('data_hora',{ascending:false}),
+      supabase.from('crm_tarefas').select('*').eq('lead_id',lead.id).order('created_at',{ascending:false}),
     ]);
     setAtividades(a||[]);
     setTarefas(t||[]);
@@ -192,7 +192,7 @@ function LeadProfile({lead,funis,onBack,onUpdate,onDelete}){
   }
 
   async function saveAtiv(form){
-    await supabase.from('atividades').insert(form);
+    await supabase.from('crm_atividades').insert(form);
     setShowAtivModal(false);
     loadData();
   }
@@ -200,20 +200,20 @@ function LeadProfile({lead,funis,onBack,onUpdate,onDelete}){
   async function criarTarefa(){
     if(!novaTarefa.trim())return;
     haptic('medium');
-    await supabase.from('tarefas').insert({lead_id:lead.id,descricao:novaTarefa.trim(),concluida:false});
+    await supabase.from('crm_tarefas').insert({lead_id:lead.id,descricao:novaTarefa.trim(),concluida:false});
     setNovaTarefa('');
     loadData();
   }
 
   async function toggleTarefa(t){
     haptic('light');
-    await supabase.from('tarefas').update({concluida:!t.concluida}).eq('id',t.id);
+    await supabase.from('crm_tarefas').update({concluida:!t.concluida}).eq('id',t.id);
     loadData();
   }
 
   async function moverEtapa(novoStatus){
     haptic('medium');
-    await supabase.from('leads').update({status:novoStatus,updated_at:new Date()}).eq('id',lead.id);
+    await supabase.from('crm_leads').update({status:novoStatus,updated_at:new Date()}).eq('id',lead.id);
     onUpdate({...lead,status:novoStatus});
   }
 
@@ -223,7 +223,7 @@ function LeadProfile({lead,funis,onBack,onUpdate,onDelete}){
   return(
     <div style={{minHeight:'100vh',background:'linear-gradient(145deg,#0a0a0f,#111118,#0d1117)',color:'#e5e7eb',fontFamily:"'DM Sans',sans-serif"}}>
       {showAtivModal&&<AtivModal leadId={lead.id} onSave={saveAtiv} onClose={()=>setShowAtivModal(false)}/>}
-      {showEditModal&&<LeadModal lead={lead} funis={funis} onSave={async(f)=>{await supabase.from('leads').update({...f,updated_at:new Date()}).eq('id',f.id);setShowEditModal(false);onUpdate(f);}} onClose={()=>setShowEditModal(false)} onDelete={onDelete}/>}
+      {showEditModal&&<LeadModal lead={lead} funis={funis} onSave={async(f)=>{await supabase.from('crm_leads').update({...f,updated_at:new Date()}).eq('id',f.id);setShowEditModal(false);onUpdate(f);}} onClose={()=>setShowEditModal(false)} onDelete={onDelete}/>}
 
       {/* Header */}
       <div style={{padding:'20px 20px 0',position:'sticky',top:0,zIndex:10,background:'rgba(10,10,15,0.95)',backdropFilter:'blur(16px)'}}>
@@ -384,10 +384,10 @@ export default function CRM({onBack}){
   async function loadAll(){
     setLoading(true);
     const[{data:l},{data:f},{data:e},{data:r}]=await Promise.all([
-      supabase.from('leads').select('*').order('created_at',{ascending:false}),
-      supabase.from('funis').select('*').order('ordem'),
-      supabase.from('funil_etapas').select('*').order('ordem'),
-      supabase.from('realizado_mensal').select('*').order('ano').order('mes'),
+      supabase.from('crm_leads').select('*').order('created_at',{ascending:false}),
+      supabase.from('crm_funis').select('*').order('ordem'),
+      supabase.from('crm_funil_etapas').select('*').order('ordem'),
+      supabase.from('crm_realizado_mensal').select('*').order('ano').order('mes'),
     ]);
     setLeads(l||[]);
     setFunis(f||[]);
@@ -398,14 +398,14 @@ export default function CRM({onBack}){
   }
 
   async function saveLead(form){
-    if(form.id)await supabase.from('leads').update({...form,updated_at:new Date()}).eq('id',form.id);
-    else await supabase.from('leads').insert(form);
+    if(form.id)await supabase.from('crm_leads').update({...form,updated_at:new Date()}).eq('id',form.id);
+    else await supabase.from('crm_leads').insert(form);
     setModal(null);
     loadAll();
   }
 
   async function deleteLead(id){
-    await supabase.from('leads').delete().eq('id',id);
+    await supabase.from('crm_leads').delete().eq('id',id);
     setModal(null);
     setSelectedLead(null);
     loadAll();
@@ -413,8 +413,8 @@ export default function CRM({onBack}){
 
   async function saveRealizado(form){
     const existing=realizado.find(r=>r.mes===form.mes&&r.ano===form.ano);
-    if(existing)await supabase.from('realizado_mensal').update(form).eq('id',existing.id);
-    else await supabase.from('realizado_mensal').insert(form);
+    if(existing)await supabase.from('crm_realizado_mensal').update(form).eq('id',existing.id);
+    else await supabase.from('crm_realizado_mensal').insert(form);
     setModal(null);
     loadAll();
   }
