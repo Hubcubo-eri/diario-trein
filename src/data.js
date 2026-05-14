@@ -19,6 +19,10 @@ export const PROGRAMS = {
       treinoA: {
         name: 'Treino A — Peito, Perna & Tríceps',
         sections: [
+          { name: 'Mobilidade', exercises: [
+            { id: 'mob_9090',  name: '90/90 Rotação de Quadril', sets: 1, reps: '60" cada lado', hw: false, obs: 'Sentado no chão, quadril em rotação interna e externa. Troque de lado sem usar as mãos.' },
+            { id: 'mob_wgs',   name: 'World's Greatest Stretch', sets: 1, reps: '5 cada lado',   hw: false, obs: 'Passo largo à frente, cotovelo ao chão, rotação torácica para cima. Flui devagar.' },
+          ]},
           { name: 'Core', exercises: [
             { id: 'c_prancha_alta',       name: 'Prancha Alta',              sets: 1, reps: '30"',       hw: false },
             { id: 'c_prancha_baixa',      name: 'Prancha Baixa',             sets: 1, reps: '30"',       hw: false },
@@ -68,6 +72,10 @@ export const PROGRAMS = {
       treinoA: {
         name: 'Treino A — Peito, Perna & Tríceps',
         sections: [
+          { name: 'Mobilidade', exercises: [
+            { id: 'mob_9090',  name: '90/90 Rotação de Quadril', sets: 1, reps: '60" cada lado', hw: false, obs: 'Sentado no chão, quadril em rotação interna e externa. Troque de lado sem usar as mãos.' },
+            { id: 'mob_wgs',   name: 'World's Greatest Stretch', sets: 1, reps: '5 cada lado',   hw: false, obs: 'Passo largo à frente, cotovelo ao chão, rotação torácica para cima. Flui devagar.' },
+          ]},
           { name: 'Core', exercises: [
             { id: 'c_perdigueiro',        name: 'Perdigueiro',               sets: 2, reps: '15',        hw: false },
             { id: 'c_elev_pelvica_uni',   name: 'Elev. Pélvica Unilateral',  sets: 2, reps: '15',        hw: false },
@@ -93,6 +101,10 @@ export const PROGRAMS = {
       treinoB: {
         name: 'Treino B — Costas, Quadríceps & Bíceps',
         sections: [
+          { name: 'Mobilidade', exercises: [
+            { id: 'mob_9090',  name: '90/90 Rotação de Quadril', sets: 1, reps: '60" cada lado', hw: false, obs: 'Sentado no chão, quadril em rotação interna e externa. Troque de lado sem usar as mãos.' },
+            { id: 'mob_wgs',   name: 'World's Greatest Stretch', sets: 1, reps: '5 cada lado',   hw: false, obs: 'Passo largo à frente, cotovelo ao chão, rotação torácica para cima. Flui devagar.' },
+          ]},
           { name: 'Core', exercises: [
             { id: 'c_perdigueiro',        name: 'Perdigueiro',               sets: 2, reps: '15',        hw: false },
             { id: 'c_elev_pelvica_uni',   name: 'Elev. Pélvica Unilateral',  sets: 2, reps: '15',        hw: false },
