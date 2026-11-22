@@ -1,0 +1,44 @@
+name: Garmin → Diário
+
+on:
+  schedule:
+    # A cada 2 horas (horário UTC; minuto "quebrado" para não pegar fila)
+    - cron: "17 */2 * * *"
+  workflow_dispatch:
+    inputs:
+      days:
+        description: "Quantos dias para trás sincronizar"
+        required: false
+        default: "2"
+      start:
+        description: "Ou: data inicial AAAA-MM-DD (importar histórico)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+# Nunca rodar duas ao mesmo tempo (o token é renovado a cada execução)
+concurrency:
+  group: garmin-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: garmin/requirements.txt
+      - run: pip install -r garmin/requirements.txt
+      - name: Sincronizar
+        env:
+          GARMIN_TOKENS: ${{ secrets.GARMIN_TOKENS }}
+          GARMIN_TOKEN_KEY: ${{ secrets.GARMIN_TOKEN_KEY }}
+          SYNC_DAYS: ${{ github.event.inputs.days || '2' }}
+          SYNC_START: ${{ github.event.inputs.start || '' }}
+        run: python garmin/sync.py

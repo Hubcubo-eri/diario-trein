@@ -63,15 +63,16 @@ export function waterTotal(day) {
   return waterLog(day).reduce((a, w) => a + num(w.ml), 0);
 }
 
-export function trainedToday(day) {
+export function trainedToday(day, garmin) {
+  if (garmin?.activities?.length) return true;
   const exDone = Object.values(day.ex || {}).some(e => e?.done || e?.series?.some(s => s.done));
   const acts = Object.values(day.act || {}).some(Boolean) || (day.actLog || []).length > 0;
   const livre = !!(day.treinoLivre?.texto || day.treinoLivre?.fotos?.length);
   return exDone || acts || livre;
 }
 
-export function waterGoal(day, config) {
-  return config.waterGoal + (trainedToday(day) ? config.waterPerWorkout : 0);
+export function waterGoal(day, config, garmin) {
+  return config.waterGoal + (trainedToday(day, garmin) ? config.waterPerWorkout : 0);
 }
 
 // ─── Comida ───────────────────────────────────────────────────────────────
@@ -150,13 +151,33 @@ export function activityMeta(id) {
   return EXTRA_ACTIVITIES.find(a => a.id === id) || { id, label: id, icon: '✨' };
 }
 
-// Atividades do dia (novo log + toggles antigos sem detalhes)
-export function dayActivities(day) {
+// Atividades do dia: log do app + toggles antigos sem detalhes + Garmin
+// (atividade do Garmin some da lista quando já foi importada/editada no app)
+export function dayActivities(day, garmin) {
   const log = day.actLog || [];
+  const fromGarmin = (garmin?.activities || [])
+    .filter(g => !log.some(l => l.garminId === g.garminId) && !(day.garminHidden || []).includes(g.garminId))
+    .map(g => ({ ...g, fromGarmin: true }));
   const legacy = Object.keys(day.act || {})
-    .filter(id => day.act[id] && !log.some(l => l.type === id))
+    .filter(id => day.act[id] && !log.some(l => l.type === id) && !fromGarmin.some(g => g.type === id))
     .map(id => ({ id: 'legacy_' + id, type: id, legacy: true }));
-  return [...log, ...legacy];
+  return [...log, ...fromGarmin, ...legacy].sort((a, b) => (a.t || '99').localeCompare(b.t || '99'));
+}
+
+// Calorias: o que você digitou tem prioridade; se vazio, usa o Garmin
+export function effectiveCal(day, garmin) {
+  const c = day.cal || {};
+  const g = garmin?.cal || {};
+  const pick = (k) => (c[k] !== undefined && c[k] !== '' ? c[k] : (g[k] ?? ''));
+  const a = pick('a'), b = pick('b');
+  let t = pick('t');
+  if ((t === '' || t === null) && (a !== '' || b !== '')) t = (parseInt(a) || 0) + (parseInt(b) || 0);
+  return { a, b, t };
+}
+
+export function fmtSleep(min) {
+  if (!min) return '—';
+  return `${Math.floor(min / 60)}h${String(min % 60).padStart(2, '0')}`;
 }
 
 // ─── Imagem ───────────────────────────────────────────────────────────────

@@ -3,11 +3,11 @@ import {
   PROGRAMS, ACTIVE_PROGRAM_ID, LEGACY_WORKOUT_MAP,
   MEALS, TOTAL_MEALS, emptyDay,
 } from '../../data';
-import { loadAllData, saveDay as saveDayDB, exportAllData, loadConfig, saveConfig } from '../../storage';
+import { loadAllData, saveDay as saveDayDB, exportAllData, loadConfig, saveConfig, loadGarmin } from '../../storage';
 import { generatePDF } from '../../pdf';
 import { DashboardEvolucao } from '../../DashboardEvolucao';
-import { dk, haptic, uid, nowHHMM, mergeConfig, waterLog, waterTotal, waterGoal, dayActivities, activityMeta, foodTotals } from './helpers';
-import { Hidratacao, DiarioAlimentar, Suplementos, Atividades, TreinoLivre } from './Registros';
+import { dk, haptic, uid, nowHHMM, mergeConfig, waterLog, waterTotal, waterGoal, dayActivities, activityMeta, foodTotals, effectiveCal } from './helpers';
+import { Hidratacao, DiarioAlimentar, Suplementos, Atividades, TreinoLivre, GarminCard } from './Registros';
 function datePretty(d) { return d.toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric', month: 'short' }); }
 function dateFull(d) { return d.toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }); }
 
@@ -370,6 +370,7 @@ export default function BemEstar({ onBack }) {
   const [showSettings, setShowSettings] = useState(false);
   const [config, setConfigState] = useState(() => mergeConfig(null));
   const [toast, setToast] = useState('');
+  const [garmin, setGarmin] = useState({});
   const [visiblePrograms, setVisiblePrograms] = useState(() => {
     try {
       const saved = localStorage.getItem(VISIBLE_PROGRAMS_KEY);
@@ -400,8 +401,9 @@ export default function BemEstar({ onBack }) {
   useEffect(() => {
     (async () => {
       setLoading(true);
-      const [data, cfg] = await Promise.all([loadAllData(), loadConfig()]);
+      const [data, cfg, gData] = await Promise.all([loadAllData(), loadConfig(), loadGarmin()]);
       setAllData(data);
+      setGarmin(gData);
       setConfigState(mergeConfig(cfg));
       setLoading(false);
       setTimeout(() => { skipSave.current = false; }, 300);
@@ -482,10 +484,13 @@ export default function BemEstar({ onBack }) {
     return { ...d, actLog: log, act: syncAct(log, act) };
   });
   const removeActivity = (entry) => setDay(d => {
+    // Atividade do Garmin: some da lista do dia (não reaparece no próximo sync)
+    const garminHidden = entry.garminId ? [...new Set([...(d.garminHidden || []), entry.garminId])] : d.garminHidden;
+    if (entry.fromGarmin) return { ...d, garminHidden };
     const log = (d.actLog || []).filter(a => a.id !== entry.id);
     const act = { ...(d.act || {}) };
     if (!log.some(a => a.type === entry.type)) delete act[entry.type];
-    return { ...d, actLog: log, act };
+    return { ...d, actLog: log, act, ...(garminHidden ? { garminHidden } : {}) };
   });
   const setCal    = (f, v)     => setDay(d => ({ ...d, cal: { ...d.cal, [f]: v } }));
   const setSub    = (id, v)    => setDay(d => ({ ...d, sub: { ...d.sub, [id]: v } }));
@@ -512,7 +517,8 @@ export default function BemEstar({ onBack }) {
   const activeSups = config.supplements.filter(s => !s.off);
   const dS  = activeSups.filter(s => day.sp?.[s.id]).length;
   const wTotal = waterTotal(day);
-  const wGoal = waterGoal(day, config);
+  const gDay = garmin[key];
+  const wGoal = waterGoal(day, config, gDay);
 
   // Swipe entre dias
   const handleTouchStart = (e) => { touchStartX.current = e.touches[0].clientX; };
@@ -583,10 +589,10 @@ export default function BemEstar({ onBack }) {
           const de = w.sections.reduce((a, s) => a + s.exercises.filter(e => (d.ex || {})[e.id]?.done).length, 0);
           const dm = Object.keys(d.mc || {}).filter(x => d.mc[x]).length;
           const ds = config.supplements.filter(s => (d.sp || {})[s.id]).length + (d.supExtra || []).length;
-          const acts = dayActivities(d).map(a => ({ ...activityMeta(a.type), ...a }));
+          const acts = dayActivities(d, garmin[k]).map(a => ({ ...activityMeta(a.type), ...a }));
           const ft = foodTotals(d);
           const wl = waterTotal(d);
-          const c = d.cal || {}; const ct = parseInt(c.t) || ((parseInt(c.a) || 0) + (parseInt(c.b) || 0));
+          const ct = parseInt(effectiveCal(d, garmin[k]).t) || 0;
           const progLabel = prog.label || '';
           const treinoLabel = d.wk === 'treinoB' ? 'Treino B' : d.wk === 'treino2' ? 'Treino 2 (Mês 1)' : d.wk === 'treino1' ? 'Treino 1 (Mês 1)' : 'Treino A';
           return (
@@ -599,7 +605,7 @@ export default function BemEstar({ onBack }) {
                   <div style={{ fontSize: 14, fontWeight: 700, color: '#f9fafb', textTransform: 'capitalize' }}>{datePretty(dt)}</div>
                   <div style={{ fontSize: 11, color: '#6b7280' }}>{progLabel} · {treinoLabel}</div>
                 </div>
-                <button onClick={e => { e.stopPropagation(); generatePDF(d, dateFull(dt), config); }}
+                <button onClick={e => { e.stopPropagation(); generatePDF(d, dateFull(dt), config, garmin[k]); }}
                   style={{ background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.3)', color: '#10b981', padding: '6px 12px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>📄</button>
               </div>
               <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
@@ -652,7 +658,7 @@ export default function BemEstar({ onBack }) {
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <button onClick={() => setShowSettings(true)} style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#9ca3af', width: 38, height: 38, borderRadius: 10, fontSize: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>⚙️</button>
             <button onClick={() => setView('history')} style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#9ca3af', width: 38, height: 38, borderRadius: 10, fontSize: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>📊</button>
-            <button onClick={() => generatePDF(day, dateFull(date), config)} style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#9ca3af', width: 38, height: 38, borderRadius: 10, fontSize: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>📄</button>
+            <button onClick={() => generatePDF(day, dateFull(date), config, gDay)} style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#9ca3af', width: 38, height: 38, borderRadius: 10, fontSize: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>📄</button>
           </div>
         </div>
 
@@ -809,7 +815,7 @@ export default function BemEstar({ onBack }) {
         {tab === 'comida' && (
           <div>
             <div style={ls}>Hidratação</div>
-            <Hidratacao day={day} config={config} onAdd={addWater} onRemove={removeWater} />
+            <Hidratacao day={day} config={config} garmin={gDay} onAdd={addWater} onRemove={removeWater} />
 
             <div style={ls}>O que comi hoje</div>
             <DiarioAlimentar day={day} allData={allData} dateKey={key} onSave={saveFood} onRemove={removeFood} />
@@ -872,6 +878,8 @@ export default function BemEstar({ onBack }) {
         {/* ══ TAB DIA ══ */}
         {tab === 'dia' && (
           <div>
+            <div style={ls}>Garmin ⌚</div>
+            <GarminCard garmin={gDay} />
             <div style={ls}>Atividades</div>
             {/* Botão dia de descanso */}
             <button onClick={() => { haptic('medium'); toggleRestDay(); }}
@@ -887,24 +895,29 @@ export default function BemEstar({ onBack }) {
                 <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#fff', position: 'absolute', top: 4, left: isRestDay ? 24 : 4, transition: 'left 0.2s' }} />
               </div>
             </button>
-            <Atividades day={day} onSave={saveActivity} onRemove={removeActivity} />
-            <div style={ls}>Calorias — Garmin ⌚</div>
+            <Atividades day={day} garmin={gDay} onSave={saveActivity} onRemove={removeActivity} />
+            <div style={ls}>Calorias</div>
             <div style={{ ...cs, marginBottom: 20 }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
                 {[{ k: 'a', l: 'Ativas', c: '#f59e0b', i: '🔥' }, { k: 'b', l: 'Basal', c: '#8b5cf6', i: '💤' }, { k: 't', l: 'Total', c: '#10b981', i: '⚡' }].map(c => (
                   <div key={c.k} style={{ textAlign: 'center' }}>
                     <div style={{ fontSize: 10, color: '#6b7280', marginBottom: 6 }}>{c.i} {c.l}</div>
-                    <input type="number" placeholder="kcal" value={day.cal[c.k] || ''} onChange={e => setCal(c.k, e.target.value)}
+                    <input type="number" placeholder={gDay?.cal?.[c.k] != null ? `⌚ ${gDay.cal[c.k]}` : 'kcal'} value={day.cal[c.k] || ''} onChange={e => setCal(c.k, e.target.value)}
                       style={{ width: '100%', padding: '10px 6px', textAlign: 'center', background: 'rgba(255,255,255,0.05)', border: `1px solid ${c.c}33`, borderRadius: 10, color: c.c, fontSize: 18, fontWeight: 700, outline: 'none' }} />
                     <div style={{ fontSize: 9, color: '#4b5563', marginTop: 4 }}>kcal</div>
                   </div>
                 ))}
               </div>
-              {(day.cal.a && day.cal.b && !day.cal.t) && (
-                <div style={{ textAlign: 'center', marginTop: 10, fontSize: 12, color: '#10b981', fontWeight: 600 }}>
-                  Total: {(parseInt(day.cal.a) || 0) + (parseInt(day.cal.b) || 0)} kcal
-                </div>
-              )}
+              {(() => {
+                const ec = effectiveCal(day, gDay);
+                const usingGarmin = gDay?.cal && !day.cal.a && !day.cal.b && !day.cal.t;
+                if (!day.cal.t && ec.t) return (
+                  <div style={{ textAlign: 'center', marginTop: 10, fontSize: 12, color: '#10b981', fontWeight: 600 }}>
+                    Total: {ec.t} kcal{usingGarmin && <span style={{ color: '#38bdf8', fontWeight: 400 }}> · do Garmin (digite para corrigir)</span>}
+                  </div>
+                );
+                return null;
+              })()}
             </div>
             <div style={ls}>Observações</div>
             <textarea placeholder="Como foi o dia?..." value={day.notes} onChange={e => setNotes(e.target.value)} rows={3}

@@ -3,7 +3,7 @@ import {
   haptic, uid, nowHHMM, num,
   waterLog, waterTotal, waterGoal,
   FOOD_MEALS, guessMeal, foodTotals, freeMealsThisWeek, foodSuggestions,
-  INTENSITY, EXTRA_ACTIVITIES, activityMeta, dayActivities, compressImage,
+  INTENSITY, EXTRA_ACTIVITIES, activityMeta, dayActivities, compressImage, fmtSleep,
 } from './helpers';
 
 // ─── Estilos compartilhados ───────────────────────────────────────────────
@@ -35,11 +35,11 @@ export function Sheet({ title, onClose, children }) {
 }
 
 // ═══ HIDRATAÇÃO ═══════════════════════════════════════════════════════════
-export function Hidratacao({ day, config, onAdd, onRemove }) {
+export function Hidratacao({ day, config, garmin, onAdd, onRemove }) {
   const [custom, setCustom] = useState('');
   const [showLog, setShowLog] = useState(false);
   const total = waterTotal(day);
-  const goal = waterGoal(day, config);
+  const goal = waterGoal(day, config, garmin);
   const pct = Math.min(100, (total / goal) * 100);
   const log = waterLog(day);
   const done = total >= goal;
@@ -321,6 +321,11 @@ function ActivityForm({ initial, onSave, onDelete, onClose }) {
 
   return (
     <Sheet title={meta ? `${meta.icon} ${a.type === 'outra' && a.name ? a.name : meta.label}` : 'Registrar atividade'} onClose={onClose}>
+      {a.fromGarmin && (
+        <div style={{ fontSize: 12, color: '#38bdf8', background: 'rgba(14,165,233,0.08)', border: '1px solid rgba(14,165,233,0.2)', borderRadius: 10, padding: '8px 12px', marginBottom: 12 }}>
+          ⌚ Veio do Garmin{a.name ? ` (“${a.name}”)` : ''}. Ajuste o tipo ou adicione notas e salve.
+        </div>
+      )}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6, marginBottom: 14 }}>
         {EXTRA_ACTIVITIES.map(x => (
           <button key={x.id} onClick={() => { haptic('light'); set('type', x.id); }}
@@ -348,16 +353,16 @@ function ActivityForm({ initial, onSave, onDelete, onClose }) {
         <div><label style={lbl}>Hora</label><input type="time" value={a.t} onChange={e => set('t', e.target.value)} style={{ ...inp, padding: '11px 4px' }} /></div>
       </div>
       <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
-        {onDelete && <button onClick={onDelete} style={{ padding: '0 18px', borderRadius: 12, border: '1px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.08)', color: '#ef4444', fontWeight: 600, cursor: 'pointer' }}>Excluir</button>}
-        <button disabled={!valid} onClick={() => { haptic('medium'); const { legacy: _l, ...rest } = a; onSave({ ...rest, id: a.legacy || !a.id ? uid() : a.id, name: a.name?.trim() || '' }); }} style={primaryBtn(!!valid)}>Salvar</button>
+        {onDelete && <button onClick={onDelete} style={{ padding: '0 18px', borderRadius: 12, border: '1px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.08)', color: '#ef4444', fontWeight: 600, cursor: 'pointer' }}>{a.fromGarmin ? 'Ocultar' : 'Excluir'}</button>}
+        <button disabled={!valid} onClick={() => { haptic('medium'); const { legacy: _l, fromGarmin: _g, ...rest } = a; onSave({ ...rest, id: a.legacy || !a.id ? uid() : a.id, name: a.name?.trim() || '' }); }} style={primaryBtn(!!valid)}>Salvar</button>
       </div>
     </Sheet>
   );
 }
 
-export function Atividades({ day, onSave, onRemove }) {
+export function Atividades({ day, garmin, onSave, onRemove }) {
   const [editing, setEditing] = useState(null);
-  const list = dayActivities(day);
+  const list = dayActivities(day, garmin);
   const totalMin = list.reduce((s, a) => s + num(a.dur), 0);
   const totalKcal = list.reduce((s, a) => s + num(a.kcal), 0);
 
@@ -376,13 +381,15 @@ export function Atividades({ day, onSave, onRemove }) {
           const details = [a.t, a.dur && `${a.dur} min`, a.dist && `${a.dist} km`, a.kcal && `${a.kcal} kcal`, a.fc && `${a.fc} bpm`].filter(Boolean).join(' · ');
           return (
             <button key={a.id} onClick={() => setEditing(a)}
-              style={{ ...cs, cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 12, background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.2)' }}>
+              style={{ ...cs, cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 12, background: a.fromGarmin ? 'rgba(14,165,233,0.06)' : 'rgba(16,185,129,0.06)', border: a.fromGarmin ? '1px solid rgba(14,165,233,0.22)' : '1px solid rgba(16,185,129,0.2)' }}>
               <span style={{ fontSize: 24 }}>{m.icon}</span>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 14, fontWeight: 600, color: '#10b981' }}>
                   {a.type === 'outra' && a.name ? a.name : m.label}
                   {int && <span style={{ fontSize: 10, color: int.color, marginLeft: 8, fontWeight: 600 }}>● {int.label}</span>}
+                  {(a.fromGarmin || a.garminId) && <span style={{ fontSize: 10, color: '#38bdf8', marginLeft: 8, fontWeight: 600 }}>⌚ Garmin</span>}
                 </div>
+                {a.garminId && a.name && a.type !== 'outra' && <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 1 }}>{a.name}</div>}
                 <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>{a.legacy ? 'Toque para adicionar detalhes' : details || 'Sem detalhes'}</div>
                 {a.notes && <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>{a.notes}</div>}
               </div>
@@ -464,6 +471,45 @@ export function TreinoLivre({ day, onChange }) {
       {viewer && (
         <div onClick={() => setViewer(null)} style={{ position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(0,0,0,0.92)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <img src={viewer} alt="" style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: 12 }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══ RESUMO DO GARMIN ═════════════════════════════════════════════════════
+export function GarminCard({ garmin }) {
+  if (!garmin) {
+    return (
+      <div style={{ ...cs, marginBottom: 20, fontSize: 12, color: '#6b7280' }}>
+        ⌚ Sem dados do Garmin para este dia ainda. A sincronização roda a cada 2h.
+      </div>
+    );
+  }
+  const bb = garmin.bodyBattery || {};
+  const sl = garmin.sleep || {};
+  const items = [
+    { i: '👣', l: 'Passos', v: garmin.steps != null ? garmin.steps.toLocaleString('pt-BR') : '—', sub: garmin.stepsGoal ? `meta ${garmin.stepsGoal.toLocaleString('pt-BR')}` : '', ok: garmin.steps && garmin.stepsGoal && garmin.steps >= garmin.stepsGoal },
+    { i: '😴', l: 'Sono', v: fmtSleep(sl.min), sub: sl.score ? `score ${sl.score}` : '' },
+    { i: '❤️', l: 'FC repouso', v: garmin.rhr ? `${garmin.rhr}` : '—', sub: garmin.rhr ? 'bpm' : '' },
+    { i: '🔋', l: 'Body Battery', v: bb.max != null ? `${bb.max}` : '—', sub: bb.min != null ? `mín ${bb.min}` : '' },
+    { i: '🧠', l: 'Estresse', v: garmin.stress != null && garmin.stress >= 0 ? `${garmin.stress}` : '—', sub: 'média' },
+  ];
+  const synced = garmin.syncedAt ? new Date(garmin.syncedAt) : null;
+  return (
+    <div style={{ ...cs, marginBottom: 20, border: '1px solid rgba(14,165,233,0.2)', background: 'rgba(14,165,233,0.04)' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 4 }}>
+        {items.map(x => (
+          <div key={x.l} style={{ textAlign: 'center', minWidth: 0 }}>
+            <div style={{ fontSize: 16 }}>{x.i}</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: x.ok ? '#10b981' : '#f9fafb', marginTop: 2 }}>{x.v}</div>
+            <div style={{ fontSize: 9, color: '#6b7280', marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{x.sub || x.l}</div>
+          </div>
+        ))}
+      </div>
+      {synced && (
+        <div style={{ fontSize: 10, color: '#4b5563', marginTop: 10, textAlign: 'right' }}>
+          ⌚ sincronizado {synced.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
         </div>
       )}
     </div>

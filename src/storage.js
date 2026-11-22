@@ -127,3 +127,15 @@ export async function saveConfig(config) {
     return !error;
   } catch { return false; }
 }
+
+// ─── Dados do Garmin (gravados pelo GitHub Action garmin/sync.py) ─────────
+// Linhas `garmin_AAAA-MM-DD`. Só leitura no app.
+export async function loadGarmin() {
+  try {
+    const { data, error } = await supabase.from('days').select('id, data').like('id', 'garmin_2%');
+    if (error || !data) return {};
+    const out = {};
+    data.forEach(row => { out[String(row.id).slice(7)] = row.data; });
+    return out;
+  } catch { return {}; }
+}

@@ -1,5 +1,5 @@
 import { PROGRAMS, LEGACY_WORKOUT_MAP, MEALS, SUPPLEMENTS } from './data';
-import { waterTotal, waterLog, dayActivities, activityMeta, FOOD_MEALS, foodTotals, INTENSITY } from './modules/BemEstar/helpers';
+import { waterTotal, waterLog, dayActivities, activityMeta, FOOD_MEALS, foodTotals, INTENSITY, effectiveCal, fmtSleep } from './modules/BemEstar/helpers';
 
 const esc = (v) => String(v ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -12,12 +12,13 @@ function resolveWorkoutForPDF(dayData) {
   return PROGRAMS[map.program].treinos[map.treino];
 }
 
-export function generatePDF(dayData, dateStr, config) {
+export function generatePDF(dayData, dateStr, config, garmin) {
   const ex = dayData.ex || {}, mc = dayData.mc || {}, sp = dayData.sp || {}, sub = dayData.sub || {};
-  const cal = dayData.cal || {}, notes = dayData.notes || '';
+  const cal = effectiveCal(dayData, garmin), notes = dayData.notes || '';
   const supList = config?.supplements || SUPPLEMENTS;
   const workout = resolveWorkoutForPDF(dayData);
   const cA = parseInt(cal.a) || 0, cB = parseInt(cal.b) || 0, cT = parseInt(cal.t) || (cA + cB);
+  const gm = garmin || null;
   let h = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap');
 *{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;color:#1a1a2e;padding:36px;background:#fff;font-size:11px}
@@ -46,7 +47,15 @@ td{padding:5px 8px;font-size:10px;border-bottom:1px solid #e5e7eb}tr:nth-child(e
     <div class="ci"><div class="cv">${cB || '—'}</div><div class="cl">BASAL</div></div>
     <div class="ci" style="border-color:#10b981"><div class="cv" style="color:#10b981">${cT || '—'}</div><div class="cl">TOTAL</div></div></div>`;
   }
-  const da = dayActivities(dayData);
+  if (gm) {
+    const bb = gm.bodyBattery || {}, sl = gm.sleep || {};
+    h += `<h2>Garmin</h2><div class="cb">
+    <div class="ci"><div class="cv">${gm.steps != null ? gm.steps.toLocaleString('pt-BR') : '—'}</div><div class="cl">PASSOS</div></div>
+    <div class="ci"><div class="cv">${fmtSleep(sl.min)}</div><div class="cl">SONO${sl.score ? ' · score ' + sl.score : ''}</div></div>
+    <div class="ci"><div class="cv">${gm.rhr || '—'}</div><div class="cl">FC REPOUSO</div></div>
+    <div class="ci"><div class="cv">${bb.max ?? '—'}</div><div class="cl">BODY BATTERY</div></div></div>`;
+  }
+  const da = dayActivities(dayData, garmin);
   if (da.length) {
     h += `<h2>Atividades</h2><table><tr><th>Atividade</th><th>Hora</th><th>Duração</th><th>Distância</th><th>Kcal</th><th>FC</th><th>Intensidade</th></tr>`;
     da.forEach(a => {
