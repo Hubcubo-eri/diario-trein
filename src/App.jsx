@@ -1,10 +1,5 @@
 import { useState } from 'react';
-import HomeMenu from './HomeMenu';
 import BemEstar from './modules/BemEstar/index';
-import Tarefas from './modules/Tarefas/index';
-import Calendario from './modules/Calendario/index';
-import Financeiro from './modules/Financeiro/index';
-import CRM from './modules/CRM/index';
 
 const APP_PIN = '0811';
 const AUTH_KEY = 'cubo-diario-auth';
@@ -58,15 +53,6 @@ function PinScreen({ onSuccess }) {
 
 export default function App() {
   const [authed, setAuthed] = useState(() => localStorage.getItem(AUTH_KEY) === 'true');
-  const [module, setModule] = useState(null); // null = home menu
-
   if (!authed) return <PinScreen onSuccess={() => setAuthed(true)} />;
-
-  if (module === 'bemEstar') return <BemEstar onBack={() => setModule(null)} />;
-  if (module === 'tarefas') return <Tarefas onBack={() => setModule(null)} />;
-  if (module === 'calendario') return <Calendario onBack={() => setModule(null)} />;
-  if (module === 'financeiro') return <Financeiro onBack={() => setModule(null)} />;
-  if (module === 'crm') return <CRM onBack={() => setModule(null)} />;
-
-  return <HomeMenu onSelect={setModule} />;
+  return <BemEstar />;
 }
