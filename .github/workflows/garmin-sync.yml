@@ -14,6 +14,10 @@ on:
         description: "Ou: data inicial AAAA-MM-DD (importar histórico)"
         required: false
         default: ""
+      debug:
+        description: "Diagnóstico: mostrar no log só os NOMES dos campos recebidos"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -26,7 +30,7 @@ concurrency:
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -41,4 +45,5 @@ jobs:
           GARMIN_TOKEN_KEY: ${{ secrets.GARMIN_TOKEN_KEY }}
           SYNC_DAYS: ${{ github.event.inputs.days || '2' }}
           SYNC_START: ${{ github.event.inputs.start || '' }}
+          DEBUG_KEYS: ${{ github.event.inputs.debug == 'true' && '1' || '' }}
         run: python garmin/sync.py
