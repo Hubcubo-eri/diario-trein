@@ -1,13 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   PROGRAMS, ACTIVE_PROGRAM_ID, LEGACY_WORKOUT_MAP,
-  MEALS, SUPPLEMENTS, ACTIVITIES, TOTAL_MEALS, emptyDay,
+  MEALS, TOTAL_MEALS, emptyDay,
 } from '../../data';
-import { loadAllData, saveDay as saveDayDB, exportAllData } from '../../storage';
+import { loadAllData, saveDay as saveDayDB, exportAllData, loadConfig, saveConfig } from '../../storage';
 import { generatePDF } from '../../pdf';
 import { DashboardEvolucao } from '../../DashboardEvolucao';
-
-function dk(d) { return d.toISOString().slice(0, 10); }
+import { dk, haptic, uid, nowHHMM, mergeConfig, waterLog, waterTotal, waterGoal, dayActivities, activityMeta, foodTotals } from './helpers';
+import { Hidratacao, DiarioAlimentar, Suplementos, Atividades, TreinoLivre } from './Registros';
 function datePretty(d) { return d.toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric', month: 'short' }); }
 function dateFull(d) { return d.toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }); }
 
@@ -22,13 +22,6 @@ function resolveWorkout(day) {
     program: PROGRAMS[map.program],
     treino: PROGRAMS[map.program].treinos[map.treino],
   };
-}
-
-// Haptic feedback leve
-function haptic(style = 'light') {
-  if (window.navigator?.vibrate) {
-    window.navigator.vibrate(style === 'light' ? 10 : style === 'medium' ? 20 : 40);
-  }
 }
 
 // Pega último peso registrado para um exercício no histórico
@@ -148,7 +141,7 @@ function WorkoutPickerModal({ onConfirm }) {
 }
 
 // ─── Modal de Configurações ───────────────────────────────────────────────
-function SettingsModal({ onClose, visiblePrograms, setVisiblePrograms }) {
+function SettingsModal({ onClose, visiblePrograms, setVisiblePrograms, config, updateConfig }) {
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={onClose}>
       <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }} />
@@ -173,6 +166,23 @@ function SettingsModal({ onClose, visiblePrograms, setVisiblePrograms }) {
             </div>
           );
         })}
+        <div style={{ fontSize: 12, color: '#6b7280', margin: '22px 0 10px' }}>💧 Hidratação</div>
+        {[
+          { k: 'waterGoal', l: 'Meta diária (ml)' },
+          { k: 'waterPerWorkout', l: 'Extra em dia de treino (ml)' },
+        ].map(f => (
+          <div key={f.k} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0' }}>
+            <span style={{ fontSize: 14, color: '#e5e7eb' }}>{f.l}</span>
+            <input type="number" inputMode="numeric" value={config[f.k]} onChange={e => updateConfig({ [f.k]: Math.max(0, parseInt(e.target.value) || 0) })}
+              style={{ width: 90, padding: '8px 10px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#e5e7eb', fontSize: 16, outline: 'none', textAlign: 'right' }} />
+          </div>
+        ))}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0' }}>
+          <span style={{ fontSize: 14, color: '#e5e7eb' }}>Botões rápidos (ml)</span>
+          <input defaultValue={config.cupSizes.join(', ')}
+            onBlur={e => { const v = e.target.value.split(/[,; ]+/).map(n => parseInt(n)).filter(n => n > 0).slice(0, 5); if (v.length) updateConfig({ cupSizes: v }); }}
+            style={{ width: 150, padding: '8px 10px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#e5e7eb', fontSize: 16, outline: 'none', textAlign: 'right' }} />
+        </div>
         <button onClick={onClose}
           style={{ width: '100%', marginTop: 20, padding: '14px 0', background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none', borderRadius: 12, color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
           Fechar
@@ -358,6 +368,8 @@ export default function BemEstar({ onBack }) {
   const [status, setStatus]   = useState('');
   const [loading, setLoading] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
+  const [config, setConfigState] = useState(() => mergeConfig(null));
+  const [toast, setToast] = useState('');
   const [visiblePrograms, setVisiblePrograms] = useState(() => {
     try {
       const saved = localStorage.getItem(VISIBLE_PROGRAMS_KEY);
@@ -388,8 +400,9 @@ export default function BemEstar({ onBack }) {
   useEffect(() => {
     (async () => {
       setLoading(true);
-      const data = await loadAllData();
+      const [data, cfg] = await Promise.all([loadAllData(), loadConfig()]);
       setAllData(data);
+      setConfigState(mergeConfig(cfg));
       setLoading(false);
       setTimeout(() => { skipSave.current = false; }, 300);
     })();
@@ -417,9 +430,63 @@ export default function BemEstar({ onBack }) {
   const updateEx  = (id, f, v) => setDay(d => ({ ...d, ex: { ...d.ex, [id]: { ...d.ex[id], [f]: v } } }));
   const toggleMc  = (id)       => setDay(d => ({ ...d, mc: { ...d.mc, [id]: !d.mc[id] } }));
   const toggleSp  = (id)       => setDay(d => ({ ...d, sp: { ...d.sp, [id]: !d.sp[id] } }));
-  const toggleAct = (id)       => setDay(d => ({ ...d, act: { ...d.act, [id]: !d.act[id] } }));
   const toggleRestDay = ()     => setDay(d => ({ ...d, restDay: !d.restDay }));
-  const setWater  = (n)        => setDay(d => ({ ...d, water: n }));
+  const setTreinoLivre = (patch) => setDay(d => ({ ...d, treinoLivre: { ...(d.treinoLivre || {}), ...patch } }));
+
+  // Configurações (suplementos, meta de água) — sincronizadas no banco
+  const updateConfig = (patch) => {
+    setConfigState(prev => {
+      const next = { ...prev, ...patch };
+      saveConfig(next);
+      return next;
+    });
+  };
+
+  const flash = (msg) => { setToast(msg); setTimeout(() => setToast(''), 1400); };
+
+  // Água: lista de registros em ml (converte o contador antigo de copos)
+  const addWater = (ml) => setDay(d => ({ ...d, waterLog: [...waterLog(d), { id: uid(), ml, t: nowHHMM() }] }));
+  const removeWater = (id) => setDay(d => ({ ...d, waterLog: waterLog(d).filter(w => w.id !== id), ...(id === 'legacy' ? { water: 0 } : {}) }));
+
+  // O que comi
+  const saveFood = (entry) => setDay(d => {
+    const list = d.food || [];
+    return { ...d, food: list.some(f => f.id === entry.id) ? list.map(f => f.id === entry.id ? entry : f) : [...list, entry] };
+  });
+  const removeFood = (id) => setDay(d => ({ ...d, food: (d.food || []).filter(f => f.id !== id) }));
+
+  // Suplementos (com horário em que tomou)
+  const toggleSup = (id) => setDay(d => {
+    const on = !d.sp?.[id];
+    const spT = { ...(d.spT || {}) };
+    if (on) spT[id] = nowHHMM(); else delete spT[id];
+    return { ...d, sp: { ...d.sp, [id]: on }, spT };
+  });
+  const addSupExtra = (x) => setDay(d => ({ ...d, supExtra: [...(d.supExtra || []), x] }));
+  const removeSupExtra = (id) => setDay(d => ({ ...d, supExtra: (d.supExtra || []).filter(x => x.id !== id) }));
+
+  // Atividades com detalhes (mantém day.act em sincronia p/ compatibilidade)
+  const syncAct = (log, act) => {
+    const next = {};
+    log.forEach(a => { next[a.type] = true; });
+    Object.keys(act || {}).forEach(k => { if (act[k] && !next[k] && !log.some(a => a.type === k)) next[k] = true; });
+    return next;
+  };
+  const saveActivity = (entry, prev) => setDay(d => {
+    let log = (d.actLog || []).filter(a => a.id !== entry.id);
+    let act = { ...(d.act || {}) };
+    if (prev?.legacy) delete act[prev.type];
+    if (prev && !prev.legacy && prev.type !== entry.type) delete act[prev.type];
+    const idx = (d.actLog || []).findIndex(a => a.id === entry.id);
+    if (idx >= 0) { log = [...(d.actLog || [])]; log[idx] = entry; } else log = [...log, entry];
+    return { ...d, actLog: log, act: syncAct(log, act) };
+  });
+  const removeActivity = (entry) => setDay(d => {
+    const log = (d.actLog || []).filter(a => a.id !== entry.id);
+    const act = { ...(d.act || {}) };
+    if (!log.some(a => a.type === entry.type)) delete act[entry.type];
+    return { ...d, actLog: log, act };
+  });
   const setCal    = (f, v)     => setDay(d => ({ ...d, cal: { ...d.cal, [f]: v } }));
   const setSub    = (id, v)    => setDay(d => ({ ...d, sub: { ...d.sub, [id]: v } }));
   const setNotes  = (v)        => setDay(d => ({ ...d, notes: v }));
@@ -442,7 +509,10 @@ export default function BemEstar({ onBack }) {
   const tEx = workout.sections.reduce((a, s) => a + s.exercises.length, 0);
   const dEx = workout.sections.reduce((a, s) => a + s.exercises.filter(e => day.ex[e.id]?.done).length, 0);
   const dM  = Object.keys(day.mc).filter(k => day.mc[k]).length;
-  const dS  = Object.keys(day.sp).filter(k => day.sp[k]).length;
+  const activeSups = config.supplements.filter(s => !s.off);
+  const dS  = activeSups.filter(s => day.sp?.[s.id]).length;
+  const wTotal = waterTotal(day);
+  const wGoal = waterGoal(day, config);
 
   // Swipe entre dias
   const handleTouchStart = (e) => { touchStartX.current = e.touches[0].clientX; };
@@ -512,8 +582,10 @@ export default function BemEstar({ onBack }) {
           const te = w.sections.reduce((a, s) => a + s.exercises.length, 0);
           const de = w.sections.reduce((a, s) => a + s.exercises.filter(e => (d.ex || {})[e.id]?.done).length, 0);
           const dm = Object.keys(d.mc || {}).filter(x => d.mc[x]).length;
-          const ds = Object.keys(d.sp || {}).filter(x => d.sp[x]).length;
-          const acts = ACTIVITIES.filter(a => (d.act || {})[a.id]);
+          const ds = config.supplements.filter(s => (d.sp || {})[s.id]).length + (d.supExtra || []).length;
+          const acts = dayActivities(d).map(a => ({ ...activityMeta(a.type), ...a }));
+          const ft = foodTotals(d);
+          const wl = waterTotal(d);
           const c = d.cal || {}; const ct = parseInt(c.t) || ((parseInt(c.a) || 0) + (parseInt(c.b) || 0));
           const progLabel = prog.label || '';
           const treinoLabel = d.wk === 'treinoB' ? 'Treino B' : d.wk === 'treino2' ? 'Treino 2 (Mês 1)' : d.wk === 'treino1' ? 'Treino 1 (Mês 1)' : 'Treino A';
@@ -527,19 +599,21 @@ export default function BemEstar({ onBack }) {
                   <div style={{ fontSize: 14, fontWeight: 700, color: '#f9fafb', textTransform: 'capitalize' }}>{datePretty(dt)}</div>
                   <div style={{ fontSize: 11, color: '#6b7280' }}>{progLabel} · {treinoLabel}</div>
                 </div>
-                <button onClick={e => { e.stopPropagation(); generatePDF(d, dateFull(dt)); }}
+                <button onClick={e => { e.stopPropagation(); generatePDF(d, dateFull(dt), config); }}
                   style={{ background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.3)', color: '#10b981', padding: '6px 12px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>📄</button>
               </div>
               <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 11, color: de === te ? '#10b981' : '#9ca3af' }}>💪 {de}/{te}</span>
                 <span style={{ fontSize: 11, color: dm === TOTAL_MEALS ? '#10b981' : '#9ca3af' }}>🥗 {dm}/{TOTAL_MEALS}</span>
-                <span style={{ fontSize: 11, color: ds === SUPPLEMENTS.length ? '#10b981' : '#9ca3af' }}>💊 {ds}/{SUPPLEMENTS.length}</span>
-                <span style={{ fontSize: 11, color: '#0ea5e9' }}>💧 {d.water || 0}/8</span>
+                <span style={{ fontSize: 11, color: ds >= activeSups.length ? '#10b981' : '#9ca3af' }}>💊 {ds}</span>
+                <span style={{ fontSize: 11, color: '#0ea5e9' }}>💧 {(wl / 1000).toFixed(1).replace('.', ',')}L</span>
+                {(d.food || []).length > 0 && <span style={{ fontSize: 11, color: '#a78bfa' }}>🍴 {d.food.length}{ft.kcal ? ` · ${Math.round(ft.kcal)} kcal` : ''}</span>}
+                {d.treinoLivre?.texto && <span style={{ fontSize: 11, color: '#10b981' }}>📝 treino</span>}
                 {ct > 0 && <span style={{ fontSize: 11, color: '#f59e0b' }}>🔥 {ct}</span>}
               </div>
               {acts.length > 0 && (
                 <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 6 }}>
-                  {acts.map(a => <span key={a.id} style={{ fontSize: 10, background: 'rgba(16,185,129,0.1)', color: '#10b981', padding: '2px 8px', borderRadius: 10 }}>{a.icon}</span>)}
+                  {acts.map(a => <span key={a.id} style={{ fontSize: 10, background: 'rgba(16,185,129,0.1)', color: '#10b981', padding: '2px 8px', borderRadius: 10 }}>{a.icon} {a.type === 'outra' && a.name ? a.name : a.label}{a.dur ? ` ${a.dur}'` : ''}</span>)}
                 </div>
               )}
             </div>
@@ -555,7 +629,10 @@ export default function BemEstar({ onBack }) {
       onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
       <div style={{ position: 'fixed', top: -120, right: -120, width: 400, height: 400, background: 'radial-gradient(circle, rgba(16,185,129,0.08), transparent 70%)', pointerEvents: 'none', zIndex: 0 }} />
       {statusBadge}
-      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} visiblePrograms={visiblePrograms} setVisiblePrograms={setVisiblePrograms} />}
+      {toast && (
+        <div style={{ position: 'fixed', bottom: 30, left: '50%', transform: 'translateX(-50%)', zIndex: 300, padding: '8px 18px', borderRadius: 20, fontSize: 13, fontWeight: 700, background: 'rgba(14,165,233,0.95)', color: '#fff', boxShadow: '0 6px 24px rgba(0,0,0,0.4)' }}>{toast}</div>
+      )}
+      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} visiblePrograms={visiblePrograms} setVisiblePrograms={setVisiblePrograms} config={config} updateConfig={updateConfig} />}
       {showWorkoutPicker && <WorkoutPickerModal onConfirm={confirmWorkout} />}
 
       {/* ── Header ── */}
@@ -575,7 +652,7 @@ export default function BemEstar({ onBack }) {
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <button onClick={() => setShowSettings(true)} style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#9ca3af', width: 38, height: 38, borderRadius: 10, fontSize: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>⚙️</button>
             <button onClick={() => setView('history')} style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#9ca3af', width: 38, height: 38, borderRadius: 10, fontSize: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>📊</button>
-            <button onClick={() => generatePDF(day, dateFull(date))} style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#9ca3af', width: 38, height: 38, borderRadius: 10, fontSize: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>📄</button>
+            <button onClick={() => generatePDF(day, dateFull(date), config)} style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#9ca3af', width: 38, height: 38, borderRadius: 10, fontSize: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>📄</button>
           </div>
         </div>
 
@@ -592,19 +669,22 @@ export default function BemEstar({ onBack }) {
         </div>
 
         {/* Cards de progresso */}
-        <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+        <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 6 }}>
           {[
-            { l: 'Treino',  v: `${dEx}/${tEx}`,               p: tEx ? (dEx/tEx)*100 : 0 },
-            { l: 'Dieta',   v: `${dM}/${TOTAL_MEALS}`,        p: TOTAL_MEALS ? (dM/TOTAL_MEALS)*100 : 0 },
-            { l: 'Suplem.', v: `${dS}/${SUPPLEMENTS.length}`, p: (dS/SUPPLEMENTS.length)*100 },
+            { l: 'Treino',  v: `${dEx}/${tEx}`,               p: tEx ? (dEx/tEx)*100 : 0, go: 'treino' },
+            { l: 'Dieta',   v: `${dM}/${TOTAL_MEALS}`,        p: TOTAL_MEALS ? (dM/TOTAL_MEALS)*100 : 0, go: 'comida' },
+            { l: 'Suplem.', v: `${dS}/${activeSups.length}`,  p: activeSups.length ? (dS/activeSups.length)*100 : 0, go: 'comida' },
+            { l: '💧 +' + config.cupSizes[0], v: `${(wTotal/1000).toFixed(1).replace('.', ',')}L`, p: Math.min(100, (wTotal/wGoal)*100), water: true },
           ].map((s, i) => (
-            <div key={i} style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 12, padding: '12px 14px', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <div style={{ fontSize: 10, color: '#6b7280', marginBottom: 6 }}>{s.l}</div>
-              <div style={{ fontSize: 22, fontWeight: 700, color: s.p === 100 ? '#10b981' : '#f9fafb', lineHeight: 1 }}>{s.v}</div>
+            <button key={i}
+              onClick={() => { haptic('light'); if (s.water) { addWater(config.cupSizes[0]); flash(`💧 +${config.cupSizes[0]} ml`); } else setTab(s.go); }}
+              style={{ background: s.water ? 'rgba(14,165,233,0.08)' : 'rgba(255,255,255,0.04)', borderRadius: 12, padding: '10px 10px', border: `1px solid ${s.water ? 'rgba(14,165,233,0.25)' : 'rgba(255,255,255,0.06)'}`, textAlign: 'left', cursor: 'pointer', minWidth: 0 }}>
+              <div style={{ fontSize: 10, color: s.water ? '#38bdf8' : '#6b7280', marginBottom: 6, whiteSpace: 'nowrap' }}>{s.l}</div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: s.p >= 100 ? (s.water ? '#0ea5e9' : '#10b981') : '#f9fafb', lineHeight: 1 }}>{s.v}</div>
               <div style={{ height: 3, background: 'rgba(255,255,255,0.08)', borderRadius: 2, marginTop: 8, overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: `${s.p}%`, background: s.p === 100 ? '#10b981' : '#10b981aa', borderRadius: 2, transition: 'width 0.4s' }} />
+                <div style={{ height: '100%', width: `${s.p}%`, background: s.water ? '#0ea5e9' : s.p >= 100 ? '#10b981' : '#10b981aa', borderRadius: 2, transition: 'width 0.4s' }} />
               </div>
-            </div>
+            </button>
           ))}
         </div>
       </div>
@@ -719,6 +799,9 @@ export default function BemEstar({ onBack }) {
                 </div>
               </div>
             ))}
+
+            <div style={ls}>Registro livre</div>
+            <TreinoLivre day={day} onChange={setTreinoLivre} />
           </div>
         )}
 
@@ -726,15 +809,12 @@ export default function BemEstar({ onBack }) {
         {tab === 'comida' && (
           <div>
             <div style={ls}>Hidratação</div>
-            <div style={{ ...cs, marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {Array.from({ length: 8 }).map((_, i) => (
-                  <button key={i} onClick={() => { haptic('light'); setWater(i < day.water ? i : i + 1); }}
-                    style={{ width: 32, height: 32, borderRadius: '50%', border: 'none', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', background: i < day.water ? 'linear-gradient(135deg, #0ea5e9, #0284c7)' : 'rgba(255,255,255,0.06)', color: i < day.water ? '#fff' : '#4b5563', boxShadow: i < day.water ? '0 2px 8px rgba(14,165,233,0.3)' : 'none', transition: 'all 0.15s' }}>💧</button>
-                ))}
-              </div>
-              <span style={{ fontSize: 20, fontWeight: 700, color: day.water >= 8 ? '#0ea5e9' : '#6b7280' }}>{day.water}/8</span>
-            </div>
+            <Hidratacao day={day} config={config} onAdd={addWater} onRemove={removeWater} />
+
+            <div style={ls}>O que comi hoje</div>
+            <DiarioAlimentar day={day} allData={allData} dateKey={key} onSave={saveFood} onRemove={removeFood} />
+
+            <div style={ls}>Plano da nutri</div>
             {Object.entries(MEALS).map(([mk, meal]) => (
               <div key={mk} style={{ marginBottom: 10 }}>
                 <button onClick={() => setExpMeal(expMeal === mk ? null : mk)}
@@ -784,27 +864,30 @@ export default function BemEstar({ onBack }) {
                 )}
               </div>
             ))}
-            <div style={{ ...ls, marginTop: 24 }}>Suplementos</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {SUPPLEMENTS.map(s => (
-                <div key={s.id} style={{ ...cs, background: day.sp[s.id] ? 'rgba(16,185,129,0.06)' : cs.background, border: day.sp[s.id] ? '1px solid rgba(16,185,129,0.2)' : cs.border, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: day.sp[s.id] ? '#10b981' : '#e5e7eb' }}>{s.name}</div>
-                    <div style={{ fontSize: 11, color: '#6b7280' }}>{s.qty} • {s.period}</div>
-                  </div>
-                  <button onClick={() => { haptic('light'); toggleSp(s.id); }}
-                    style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: day.sp[s.id] ? '#10b981' : 'rgba(255,255,255,0.06)', color: day.sp[s.id] ? '#fff' : '#4b5563', fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}>
-                    {day.sp[s.id] ? '✓' : '○'}
-                  </button>
-                </div>
-              ))}
-            </div>
+            <Suplementos day={day} config={config} onToggle={toggleSup} onAddExtra={addSupExtra} onRemoveExtra={removeSupExtra}
+              onSaveList={list => updateConfig({ supplements: list })} />
           </div>
         )}
 
         {/* ══ TAB DIA ══ */}
         {tab === 'dia' && (
           <div>
+            <div style={ls}>Atividades</div>
+            {/* Botão dia de descanso */}
+            <button onClick={() => { haptic('medium'); toggleRestDay(); }}
+              style={{ width: '100%', marginBottom: 12, padding: '14px 16px', borderRadius: 14, cursor: 'pointer', textAlign: 'left', border: isRestDay ? '1px solid rgba(99,102,241,0.4)' : '1px solid rgba(255,255,255,0.06)', background: isRestDay ? 'rgba(99,102,241,0.12)' : 'rgba(255,255,255,0.03)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', transition: 'all 0.2s' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span style={{ fontSize: 22 }}>🛌</span>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: isRestDay ? '#a5b4fc' : '#e5e7eb' }}>Dia de Descanso</div>
+                  <div style={{ fontSize: 11, color: '#6b7280', marginTop: 1 }}>Sem treino hoje</div>
+                </div>
+              </div>
+              <div style={{ width: 48, height: 28, borderRadius: 14, background: isRestDay ? '#6366f1' : 'rgba(255,255,255,0.1)', position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}>
+                <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#fff', position: 'absolute', top: 4, left: isRestDay ? 24 : 4, transition: 'left 0.2s' }} />
+              </div>
+            </button>
+            <Atividades day={day} onSave={saveActivity} onRemove={removeActivity} />
             <div style={ls}>Calorias — Garmin ⌚</div>
             <div style={{ ...cs, marginBottom: 20 }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
@@ -822,30 +905,6 @@ export default function BemEstar({ onBack }) {
                   Total: {(parseInt(day.cal.a) || 0) + (parseInt(day.cal.b) || 0)} kcal
                 </div>
               )}
-            </div>
-            <div style={ls}>Atividades</div>
-            {/* Botão dia de descanso */}
-            <button onClick={() => { haptic('medium'); toggleRestDay(); }}
-              style={{ width: '100%', marginBottom: 12, padding: '14px 16px', borderRadius: 14, cursor: 'pointer', textAlign: 'left', border: isRestDay ? '1px solid rgba(99,102,241,0.4)' : '1px solid rgba(255,255,255,0.06)', background: isRestDay ? 'rgba(99,102,241,0.12)' : 'rgba(255,255,255,0.03)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', transition: 'all 0.2s' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <span style={{ fontSize: 22 }}>🛌</span>
-                <div>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: isRestDay ? '#a5b4fc' : '#e5e7eb' }}>Dia de Descanso</div>
-                  <div style={{ fontSize: 11, color: '#6b7280', marginTop: 1 }}>Sem treino hoje</div>
-                </div>
-              </div>
-              <div style={{ width: 48, height: 28, borderRadius: 14, background: isRestDay ? '#6366f1' : 'rgba(255,255,255,0.1)', position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}>
-                <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#fff', position: 'absolute', top: 4, left: isRestDay ? 24 : 4, transition: 'left 0.2s' }} />
-              </div>
-            </button>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 24 }}>
-              {ACTIVITIES.map(a => (
-                <button key={a.id} onClick={() => { haptic('light'); toggleAct(a.id); }}
-                  style={{ padding: '12px 8px', borderRadius: 12, cursor: 'pointer', textAlign: 'center', border: day.act[a.id] ? '1px solid rgba(16,185,129,0.3)' : '1px solid rgba(255,255,255,0.05)', background: day.act[a.id] ? 'rgba(16,185,129,0.12)' : 'rgba(255,255,255,0.03)', transition: 'all 0.15s' }}>
-                  <div style={{ fontSize: 22 }}>{a.icon}</div>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: day.act[a.id] ? '#10b981' : '#9ca3af', marginTop: 4 }}>{a.label}</div>
-                </button>
-              ))}
             </div>
             <div style={ls}>Observações</div>
             <textarea placeholder="Como foi o dia?..." value={day.notes} onChange={e => setNotes(e.target.value)} rows={3}

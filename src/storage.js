@@ -28,6 +28,8 @@ const LEGACY_ID_MAP = {
   'm2_6': 'm1b_desenv_ombro',
 };
 
+const DATE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
 function migrateLegacyIds(dayData) {
   if (!dayData || !dayData.ex) return dayData;
   const hasLegacyIds = Object.keys(dayData.ex).some(id => LEGACY_ID_MAP[id]);
@@ -54,6 +56,7 @@ export async function loadAllData() {
     const result = {};
     if (data) {
       data.forEach(row => {
+        if (!DATE_KEY_RE.test(String(row.id))) return; // ignora linhas especiais (ex.: config)
         result[row.id] = migrateLegacyIds(row.data);
       });
     }
@@ -93,4 +96,34 @@ export async function exportAllData() {
   a.download = `diario-treino-backup-${new Date().toISOString().slice(0, 10)}.json`;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+// ─── Configurações do Bem-Estar (suplementos, meta de água) ───────────────
+// Salvas numa linha especial da tabela `days` (id = 'config') e espelhadas
+// no localStorage, para funcionar mesmo offline.
+const CONFIG_ID = 'config';
+const CONFIG_LS = 'cubo-bemestar-config';
+
+export async function loadConfig() {
+  let local = null;
+  try { local = JSON.parse(localStorage.getItem(CONFIG_LS) || 'null'); } catch { /* ignore */ }
+  try {
+    const { data, error } = await supabase.from('days').select('data').eq('id', CONFIG_ID).maybeSingle();
+    if (!error && data?.data) {
+      try { localStorage.setItem(CONFIG_LS, JSON.stringify(data.data)); } catch { /* ignore */ }
+      return data.data;
+    }
+  } catch { /* ignore */ }
+  return local;
+}
+
+export async function saveConfig(config) {
+  try { localStorage.setItem(CONFIG_LS, JSON.stringify(config)); } catch { /* ignore */ }
+  try {
+    const { error } = await supabase.from('days').upsert(
+      { id: CONFIG_ID, data: config, updated_at: new Date().toISOString() },
+      { onConflict: 'id' }
+    );
+    return !error;
+  } catch { return false; }
 }

@@ -1,4 +1,7 @@
-import { PROGRAMS, LEGACY_WORKOUT_MAP, MEALS, SUPPLEMENTS, ACTIVITIES } from './data';
+import { PROGRAMS, LEGACY_WORKOUT_MAP, MEALS, SUPPLEMENTS } from './data';
+import { waterTotal, waterLog, dayActivities, activityMeta, FOOD_MEALS, foodTotals, INTENSITY } from './modules/BemEstar/helpers';
+
+const esc = (v) => String(v ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 function resolveWorkoutForPDF(dayData) {
   if (dayData.program && PROGRAMS[dayData.program]) {
@@ -9,8 +12,10 @@ function resolveWorkoutForPDF(dayData) {
   return PROGRAMS[map.program].treinos[map.treino];
 }
 
-export function generatePDF(dayData, dateStr) {
-  const { ex, mc, act, notes, sp, water, sub, cal } = dayData;
+export function generatePDF(dayData, dateStr, config) {
+  const ex = dayData.ex || {}, mc = dayData.mc || {}, sp = dayData.sp || {}, sub = dayData.sub || {};
+  const cal = dayData.cal || {}, notes = dayData.notes || '';
+  const supList = config?.supplements || SUPPLEMENTS;
   const workout = resolveWorkoutForPDF(dayData);
   const cA = parseInt(cal.a) || 0, cB = parseInt(cal.b) || 0, cT = parseInt(cal.t) || (cA + cB);
   let h = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
@@ -41,9 +46,27 @@ td{padding:5px 8px;font-size:10px;border-bottom:1px solid #e5e7eb}tr:nth-child(e
     <div class="ci"><div class="cv">${cB || '—'}</div><div class="cl">BASAL</div></div>
     <div class="ci" style="border-color:#10b981"><div class="cv" style="color:#10b981">${cT || '—'}</div><div class="cl">TOTAL</div></div></div>`;
   }
-  const da = ACTIVITIES.filter(a => act[a.id]);
-  if (da.length) { h += `<h2>Atividades</h2><div class="tags">`; da.forEach(a => h += `<div class="tag">${a.icon} ${a.label}</div>`); h += `</div>`; }
-  h += `<h2>Alimentação</h2>`;
+  const da = dayActivities(dayData);
+  if (da.length) {
+    h += `<h2>Atividades</h2><table><tr><th>Atividade</th><th>Hora</th><th>Duração</th><th>Distância</th><th>Kcal</th><th>FC</th><th>Intensidade</th></tr>`;
+    da.forEach(a => {
+      const m = activityMeta(a.type);
+      const it = INTENSITY.find(i => i.id === a.intensity);
+      h += `<tr><td>${m.icon} ${esc(a.type === 'outra' && a.name ? a.name : m.label)}${a.notes ? `<br><span style="color:#888;font-size:9px">${esc(a.notes)}</span>` : ''}</td><td>${esc(a.t || '—')}</td><td>${a.dur ? esc(a.dur) + ' min' : '—'}</td><td>${a.dist ? esc(a.dist) + ' km' : '—'}</td><td>${esc(a.kcal || '—')}</td><td>${a.fc ? esc(a.fc) + ' bpm' : '—'}</td><td>${it ? it.label : '—'}</td></tr>`;
+    });
+    h += `</table>`;
+  }
+  const food = dayData.food || [];
+  if (food.length) {
+    const ft = foodTotals(dayData);
+    h += `<h2>O que comi</h2><table><tr><th>Refeição</th><th>Hora</th><th>Descrição</th><th>Qtd</th><th>Kcal</th><th>Prot.</th></tr>`;
+    FOOD_MEALS.forEach(m => food.filter(f => f.meal === m.id).sort((a, b) => (a.t || '').localeCompare(b.t || '')).forEach(f => {
+      h += `<tr><td>${m.icon} ${m.label}${f.livre ? ' <b style="color:#b45309">(livre)</b>' : ''}</td><td>${esc(f.t || '—')}</td><td>${esc(f.desc)}</td><td>${esc(f.qty || '—')}</td><td>${esc(f.kcal || '—')}</td><td>${f.prot ? esc(f.prot) + 'g' : '—'}</td></tr>`;
+    }));
+    h += `</table>`;
+    if (ft.kcal || ft.prot) h += `<p style="font-size:10px;margin-bottom:8px"><b>Total registrado:</b> ${Math.round(ft.kcal)} kcal · ${Math.round(ft.prot)}g proteína</p>`;
+  }
+  h += `<h2>Plano alimentar</h2>`;
   Object.values(MEALS).forEach(meal => {
     h += `<h3>${meal.icon} ${meal.name}</h3><table><tr><th>Alimento</th><th>Qtd</th><th>✓</th><th>Subst.</th></tr>`;
     meal.items.forEach(it => {
@@ -52,8 +75,9 @@ td{padding:5px 8px;font-size:10px;border-bottom:1px solid #e5e7eb}tr:nth-child(e
     h += `</table>`;
     if (meal.obs) h += `<p style="font-size:9px;color:#b45309;margin-bottom:8px">⚠️ ${meal.obs}</p>`;
   });
-  h += `<h2>Suplementos</h2><table><tr><th>Suplemento</th><th>Dose</th><th>Hora</th><th>✓</th></tr>`;
-  SUPPLEMENTS.forEach(s => h += `<tr><td>${s.name}</td><td>${s.qty}</td><td>${s.period}</td><td>${sp[s.id] ? '<span class="ck">✓</span>' : '<span class="ms">—</span>'}</td></tr>`);
+  h += `<h2>Suplementos</h2><table><tr><th>Suplemento</th><th>Dose</th><th>Quando</th><th>Tomou</th></tr>`;
+  supList.filter(s => !s.off || sp[s.id]).forEach(s => h += `<tr><td>${esc(s.name)}</td><td>${esc(s.qty)}</td><td>${esc(s.period)}</td><td>${sp[s.id] ? `<span class="ck">✓</span> ${esc(dayData.spT?.[s.id] || '')}` : '<span class="ms">—</span>'}</td></tr>`);
+  (dayData.supExtra || []).forEach(x => h += `<tr><td>${esc(x.name)} <i style="color:#888">(avulso)</i></td><td>${esc(x.qty || '—')}</td><td>—</td><td><span class="ck">✓</span> ${esc(x.t || '')}</td></tr>`);
   h += `</table>`;
   if (workout) {
     h += `<h2>${workout.name}</h2>`;
@@ -63,8 +87,16 @@ td{padding:5px 8px;font-size:10px;border-bottom:1px solid #e5e7eb}tr:nth-child(e
       h += `</table>`;
     });
   }
-  h += `<div style="margin-top:8px"><strong>💧 Hidratação:</strong> ${water}/8 copos</div>`;
-  if (notes.trim()) h += `<h2>Observações</h2><div class="nb">${notes}</div>`;
+  const tl = dayData.treinoLivre;
+  if (tl && (tl.texto || tl.fotos?.length)) {
+    h += `<h2>Treino do dia (registro livre)</h2>`;
+    if (tl.dur || tl.kcal) h += `<p style="font-size:10px;margin-bottom:6px">${tl.dur ? `⏱ ${esc(tl.dur)} min ` : ''}${tl.kcal ? `🔥 ${esc(tl.kcal)} kcal` : ''}</p>`;
+    if (tl.texto) h += `<div class="nb">${esc(tl.texto)}</div>`;
+    if (tl.fotos?.length) h += `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">${tl.fotos.map(f => `<img src="${f}" style="height:160px;border-radius:6px">`).join('')}</div>`;
+  }
+  const wt = waterTotal(dayData);
+  h += `<h2>Hidratação</h2><p><strong>💧 ${(wt / 1000).toFixed(2).replace('.', ',')} L</strong>${waterLog(dayData).filter(w => !w.legacy).length ? ` — ${waterLog(dayData).filter(w => !w.legacy).map(w => `${esc(w.t)} ${w.ml}ml`).join(' · ')}` : ''}</p>`;
+  if (notes.trim()) h += `<h2>Observações</h2><div class="nb">${esc(notes)}</div>`;
   h += `<div class="ft">Cubo Saúde — Diário de Treino & Nutrição • ${dateStr}<br>Nutri: Bruna Siqueira Gama Rodrigues — CRN 46178</div></body></html>`;
   const blob = new Blob([h], { type: 'text/html' }); const url = URL.createObjectURL(blob);
   const w = window.open(url, '_blank'); if (w) setTimeout(() => { w.print(); URL.revokeObjectURL(url); }, 800);
