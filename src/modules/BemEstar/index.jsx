@@ -8,6 +8,7 @@ import { generatePDF } from '../../pdf';
 import { DashboardEvolucao } from '../../DashboardEvolucao';
 import { dk, haptic, uid, nowHHMM, mergeConfig, waterLog, waterTotal, waterGoal, dayActivities, activityMeta, foodTotals, effectiveCal } from './helpers';
 import { Hidratacao, DiarioAlimentar, Suplementos, Atividades, TreinoLivre, GarminCard } from './Registros';
+import { GarminStrip, GarminReport } from './GarminReport';
 function datePretty(d) { return d.toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric', month: 'short' }); }
 function dateFull(d) { return d.toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }); }
 
@@ -571,6 +572,11 @@ export default function BemEstar({ onBack }) {
     </div>
   );
 
+  // ── RELATÓRIO GARMIN ──────────────────────────────────────────────────────
+  if (view === 'garmin') {
+    return <GarminReport garmin={garmin} onClose={() => { window.scrollTo(0, 0); setView('today'); }} />;
+  }
+
   // ── HISTORY ───────────────────────────────────────────────────────────────
   if (view === 'history') {
     const days = Object.keys(allData).sort().reverse();
@@ -656,6 +662,7 @@ export default function BemEstar({ onBack }) {
           </div>
           {/* Ações */}
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button onClick={() => { window.scrollTo(0, 0); setView('garmin'); }} title="Relatório Garmin" style={{ background: 'rgba(14,165,233,0.12)', border: 'none', color: '#38bdf8', width: 38, height: 38, borderRadius: 10, fontSize: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>⌚</button>
             <button onClick={() => setShowSettings(true)} style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#9ca3af', width: 38, height: 38, borderRadius: 10, fontSize: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>⚙️</button>
             <button onClick={() => setView('history')} style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#9ca3af', width: 38, height: 38, borderRadius: 10, fontSize: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>📊</button>
             <button onClick={() => generatePDF(day, dateFull(date), config, gDay)} style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#9ca3af', width: 38, height: 38, borderRadius: 10, fontSize: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>📄</button>
@@ -674,8 +681,11 @@ export default function BemEstar({ onBack }) {
             style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: dk(new Date()) === key ? '#2a2a2a' : '#9ca3af', width: 36, height: 36, borderRadius: 10, fontSize: 16, cursor: dk(new Date()) === key ? 'default' : 'pointer' }}>›</button>
         </div>
 
+        {/* Garmin do dia — toque para o relatório completo */}
+        <GarminStrip g={gDay} onOpen={() => { window.scrollTo(0, 0); setView('garmin'); }} />
+
         {/* Cards de progresso */}
-        <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 6 }}>
+        <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 6 }}>
           {[
             { l: 'Treino',  v: `${dEx}/${tEx}`,               p: tEx ? (dEx/tEx)*100 : 0, go: 'treino' },
             { l: 'Dieta',   v: `${dM}/${TOTAL_MEALS}`,        p: TOTAL_MEALS ? (dM/TOTAL_MEALS)*100 : 0, go: 'comida' },

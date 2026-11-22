@@ -28,6 +28,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
 from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
@@ -181,14 +182,61 @@ def map_activity(a: dict) -> dict:
     }
 
 
+def _first(v):
+    """Algumas rotas devolvem lista, outras dict."""
+    if isinstance(v, list):
+        return v[0] if v else {}
+    return v or {}
+
+
+def _debug(name, v):
+    # Só os NOMES dos campos (nunca valores) — ajuda a ajustar o mapeamento
+    if os.getenv("DEBUG_KEYS") and v:
+        obj = _first(v)
+        if isinstance(obj, dict):
+            print(f"  [debug] {name}: {sorted(obj.keys())[:40]}")
+
+
+def _training_status(ts: dict) -> dict:
+    out = {}
+    recent = (ts.get("mostRecentTrainingStatus") or {}).get("latestTrainingStatusData") or {}
+    for dev in recent.values():
+        if isinstance(dev, dict):
+            out["status"] = dev.get("trainingStatusFeedbackPhrase") or dev.get("trainingStatus")
+            load = dev.get("acuteTrainingLoadDTO") or {}
+            out["acuteLoad"] = _int(load.get("dailyTrainingLoadAcute"))
+            out["chronicLoad"] = _int(load.get("dailyTrainingLoadChronic"))
+            break
+    vo2 = ((ts.get("mostRecentVO2Max") or {}).get("generic") or {})
+    if vo2.get("vo2MaxPreciseValue") or vo2.get("vo2MaxValue"):
+        out["vo2max"] = vo2.get("vo2MaxPreciseValue") or vo2.get("vo2MaxValue")
+    return out
+
+
 def collect_day(g: Garmin, d: date) -> dict:
     ds = d.isoformat()
     stats = _safe(g.get_stats, ds) or {}
     sleep = _safe(g.get_sleep_data, ds) or {}
     acts = _safe(g.get_activities_by_date, ds, ds) or []
+    hrv = _safe(g.get_hrv_data, ds) or {}
+    readiness = _first(_safe(g.get_training_readiness, ds))
+    tstatus = _safe(g.get_training_status, ds) or {}
+    maxm = _first(_safe(g.get_max_metrics, ds))
+    body = _safe(g.get_body_composition, ds, ds) or {}
+    for n, v in [("stats", stats), ("sleep.dailySleepDTO", sleep.get("dailySleepDTO")), ("hrv.hrvSummary", hrv.get("hrvSummary")),
+                 ("readiness", readiness), ("trainingStatus", tstatus), ("maxMetrics", maxm), ("body", body)]:
+        _debug(n, v)
 
     sleep_dto = sleep.get("dailySleepDTO") or {}
-    sleep_score = ((sleep_dto.get("sleepScores") or {}).get("overall") or {}).get("value")
+    scores = sleep_dto.get("sleepScores") or {}
+    hrv_sum = hrv.get("hrvSummary") or {}
+    ts = _training_status(tstatus)
+    vo2 = ts.get("vo2max") or ((maxm.get("generic") or {}).get("vo2MaxPreciseValue")) or ((maxm.get("generic") or {}).get("vo2MaxValue"))
+    weights = body.get("dateWeightList") or []
+    w = weights[-1] if weights else {}
+
+    def _min(sec):
+        return _int((sec or 0) / 60) or None
 
     return {
         "source": "garmin",
@@ -200,19 +248,54 @@ def collect_day(g: Garmin, d: date) -> dict:
         },
         "steps": _int(stats.get("totalSteps")),
         "stepsGoal": _int(stats.get("dailyStepGoal")),
+        "distKm": round((stats.get("totalDistanceMeters") or 0) / 1000, 2) or None,
+        "floors": _int(stats.get("floorsAscended")),
+        "intensityMin": {
+            "mod": _int(stats.get("moderateIntensityMinutes")),
+            "vig": _int(stats.get("vigorousIntensityMinutes")),
+        },
         "rhr": _int(stats.get("restingHeartRate")),
+        "hrMin": _int(stats.get("minHeartRate")),
+        "hrMax": _int(stats.get("maxHeartRate")),
         "stress": _int(stats.get("averageStressLevel")),
         "bodyBattery": {
             "max": _int(stats.get("bodyBatteryHighestValue")),
             "min": _int(stats.get("bodyBatteryLowestValue")),
             "now": _int(stats.get("bodyBatteryMostRecentValue")),
+            "charged": _int(stats.get("bodyBatteryChargedValue")),
+            "drained": _int(stats.get("bodyBatteryDrainedValue")),
         },
         "sleep": {
-            "min": _int((sleep_dto.get("sleepTimeSeconds") or 0) / 60) or None,
-            "score": _int(sleep_score),
-            "deepMin": _int((sleep_dto.get("deepSleepSeconds") or 0) / 60) or None,
-            "remMin": _int((sleep_dto.get("remSleepSeconds") or 0) / 60) or None,
+            "min": _min(sleep_dto.get("sleepTimeSeconds")),
+            "score": _int((scores.get("overall") or {}).get("value")),
+            "deepMin": _min(sleep_dto.get("deepSleepSeconds")),
+            "lightMin": _min(sleep_dto.get("lightSleepSeconds")),
+            "remMin": _min(sleep_dto.get("remSleepSeconds")),
+            "awakeMin": _min(sleep_dto.get("awakeSleepSeconds")),
+            "spo2": _int(sleep_dto.get("avgSpO2")),
+            "resp": _int(sleep_dto.get("avgRespirationValue")),
         },
+        "hrv": {
+            "night": _int(hrv_sum.get("lastNightAvg") or sleep_dto.get("avgSleepHRV")),
+            "week": _int(hrv_sum.get("weeklyAvg")),
+            "status": hrv_sum.get("status"),
+        },
+        "readiness": {
+            "score": _int(readiness.get("score")),
+            "level": readiness.get("level"),
+            "recoveryH": _int((readiness.get("recoveryTime") or 0) / 60) if readiness.get("recoveryTime") else None,
+        },
+        "training": {
+            "status": ts.get("status"),
+            "acuteLoad": ts.get("acuteLoad"),
+            "vo2max": round(float(vo2), 1) if vo2 else None,
+        },
+        "body": {
+            "weightKg": round(w["weight"] / 1000, 2) if w.get("weight") else None,
+            "fatPct": w.get("bodyFat"),
+            "muscleKg": round(w["muscleMass"] / 1000, 2) if w.get("muscleMass") else None,
+            "bmi": w.get("bmi"),
+        } if w else None,
         "activities": [map_activity(a) for a in acts if a.get("activityId")],
     }
 
@@ -232,8 +315,11 @@ def date_range() -> list[date]:
 def main() -> None:
     g, fernet = login()
     ok = 0
+    days = date_range()
     try:
-        for d in date_range():
+        for d in days:
+            if len(days) > 7:
+                time.sleep(1.0)  # importação de histórico: não martelar a API
             data = collect_day(g, d)
             sb_upsert(f"garmin_{d.isoformat()}", data)
             ok += 1
